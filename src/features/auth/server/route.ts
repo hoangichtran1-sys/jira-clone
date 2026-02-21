@@ -39,7 +39,7 @@ const app = new Hono()
                         error: error.message,
                         type: error.type,
                     },
-                    toHttpStatus(error.code)
+                    toHttpStatus(error.code),
                 );
             }
 
@@ -49,31 +49,59 @@ const app = new Hono()
     .post("/register", zValidator("json", registerSchema), async (c) => {
         const { name, email, password } = c.req.valid("json");
 
-        const { account } = await createAdminClient();
-        await account.create(ID.unique(), email, password, name);
+        try {
+            const { account } = await createAdminClient();
+            await account.create(ID.unique(), email, password, name);
 
-        const session = await account.createEmailPasswordSession(
-            email,
-            password,
-        );
+            const session = await account.createEmailPasswordSession(
+                email,
+                password,
+            );
 
-        setCookie(c, AUTH_COOKIE, session.secret, {
-            path: "/",
-            httpOnly: true,
-            secure: true,
-            sameSite: "strict",
-            maxAge: MAX_AGE_SESSION,
-        });
+            setCookie(c, AUTH_COOKIE, session.secret, {
+                path: "/",
+                httpOnly: true,
+                secure: true,
+                sameSite: "strict",
+                maxAge: MAX_AGE_SESSION,
+            });
 
-        return c.json({ success: true });
+            return c.json({ success: true });
+        } catch (error) {
+            if (error instanceof AppwriteException) {
+                return c.json(
+                    {
+                        error: error.message,
+                        type: error.type,
+                    },
+                    toHttpStatus(error.code),
+                );
+            }
+
+            return c.json({ error: "Internal Server Error" }, 500);
+        }
     })
     .post("/logout", sessionMiddleware, async (c) => {
         const account = c.get("account");
 
         deleteCookie(c, AUTH_COOKIE);
-        await account.deleteSession("current");
+        try {
+            await account.deleteSession("current");
 
-        return c.json({ success: true });
+            return c.json({ success: true });
+        } catch (error) {
+            if (error instanceof AppwriteException) {
+                return c.json(
+                    {
+                        error: error.message,
+                        type: error.type,
+                    },
+                    toHttpStatus(error.code),
+                );
+            }
+
+            return c.json({ error: "Internal Server Error" }, 500);
+        }
     });
 
 export default app;

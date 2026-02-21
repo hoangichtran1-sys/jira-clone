@@ -1,0 +1,6 @@
+procs:
+  ngrok:
+    cmd: ["bun", "run", "dev:webhook"]
+
+  next:
+    cmd: ["bun", "run", "dev"]

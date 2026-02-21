@@ -5,7 +5,9 @@ export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
-export function toHttpStatus(code?: number): 400 | 401 | 403 | 404 | 500 {
+export function toHttpStatus(
+    code?: number,
+): 400 | 401 | 403 | 404 | 409 | 429 | 500 {
     if (code === 401) return 401;
     if (code === 403) return 403;
     if (code === 404) return 404;
@@ -14,3 +16,24 @@ export function toHttpStatus(code?: number): 400 | 401 | 403 | 404 | 500 {
     if (code === 429) return 429;
     return 500;
 }
+
+export function generateInviteCode(length: number) {
+    const characters =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(
+            Math.floor(Math.random() * characters.length),
+        );
+    }
+    return result;
+}
+
+export function snakeCaseToTitleCase(str: string) {
+    return str
+        .toLowerCase()
+        .replace(/_/, " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+

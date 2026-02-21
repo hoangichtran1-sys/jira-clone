@@ -19,6 +19,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { loginSchema } from "../schemas";
 import { useLogin } from "../api/use-login";
+import { signUpWithGithub, signUpWithGoogle } from "@/lib/oauth";
 
 export const SignInCard = () => {
     const form = useForm<z.infer<typeof loginSchema>>({
@@ -99,7 +100,8 @@ export const SignInCard = () => {
                     variant="secondary"
                     size="lg"
                     className="w-full"
-                    disabled={false}
+                    disabled={login.isPending}
+                    onClick={() => signUpWithGoogle()}
                 >
                     <FcGoogle className="mr-2 size-5" />
                     Login with Google
@@ -108,7 +110,8 @@ export const SignInCard = () => {
                     variant="secondary"
                     size="lg"
                     className="w-full"
-                    disabled={false}
+                    disabled={login.isPending}
+                    onClick={() => signUpWithGithub()}
                 >
                     <FaGithub className="mr-2 size-5" />
                     Login with Github

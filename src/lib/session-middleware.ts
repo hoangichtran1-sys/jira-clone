@@ -16,7 +16,7 @@ import { createMiddleware } from "hono/factory";
 
 import { AUTH_COOKIE } from "@/features/auth/constants";
 
-type AdditionalContext = {
+export type AdditionalContext = {
     Variables: {
         account: AccountType;
         databases: DatabasesType;
@@ -26,29 +26,38 @@ type AdditionalContext = {
     };
 };
 
-export const sessionMiddleware = createMiddleware<AdditionalContext>(async (c, next) => {
-    const client = new Client()
-        .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-        .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT!);
+export const sessionMiddleware = createMiddleware<AdditionalContext>(
+    async (c, next) => {
+        const client = new Client()
+            .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
+            .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT!);
 
-    const session = getCookie(c, AUTH_COOKIE);
+        const session = getCookie(c, AUTH_COOKIE);
 
-    if (!session) {
-        return c.json({ error: "Unauthorized" }, 401);
-    }
+        if (!session) {
+            return c.json({ error: "Unauthorized" }, 401);
+        }
 
-    client.setSession(session);
+        client.setSession(session);
 
-    const account = new Account(client);
-    const databases = new Databases(client);
-    const storage = new Storage(client);
+        const account = new Account(client);
+        const databases = new Databases(client);
+        const storage = new Storage(client);
 
-    const user = await account.get();
+        let user;
+        try {
+            user = await account.get();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (err: any) {
+            console.error("account.get failed", err);
+            return c.json({ error: "Unauthorized" }, 401);
+        }
 
-    c.set("account", account);
-    c.set("databases", databases);
-    c.set("storage", storage);
-    c.set("user", user);
+        c.set("account", account);
+        c.set("databases", databases);
+        c.set("storage", storage);
+        c.set("user", user);
 
-    await next();
-});
+        await next();
+    },
+);

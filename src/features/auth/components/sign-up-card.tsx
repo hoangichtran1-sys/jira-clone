@@ -25,6 +25,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { registerSchema } from "../schemas";
 import { useRegister } from "../api/use-register";
+import { signUpWithGithub, signUpWithGoogle } from "@/lib/oauth";
 
 export const SignUpCard = () => {
     const form = useForm<z.infer<typeof registerSchema>>({
@@ -132,7 +133,8 @@ export const SignUpCard = () => {
                     variant="secondary"
                     size="lg"
                     className="w-full"
-                    disabled={false}
+                    disabled={register.isPending}
+                    onClick={() => signUpWithGoogle()}
                 >
                     <FcGoogle className="mr-2 size-5" />
                     Login with Google
@@ -141,7 +143,8 @@ export const SignUpCard = () => {
                     variant="secondary"
                     size="lg"
                     className="w-full"
-                    disabled={false}
+                    disabled={register.isPending}
+                    onClick={() => signUpWithGithub()}
                 >
                     <FaGithub className="mr-2 size-5" />
                     Login with Github
