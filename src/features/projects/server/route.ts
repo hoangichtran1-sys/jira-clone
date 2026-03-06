@@ -17,6 +17,8 @@ import { TaskStatus } from "@/features/tasks/types";
 import { getCurrentProjects } from "../utils";
 import { getCurrentSubscription } from "@/features/subscriptions/utils";
 import { MAX_FREE_PROJECT } from "@/constants";
+import { generateImageUrl } from "@/lib/utils";
+import { ably } from "@/lib/ably-rest";
 
 const app = new Hono()
     .get(
@@ -105,12 +107,13 @@ const app = new Hono()
                     image,
                 );
 
-                const arrayBuffer = await storage.getFileView(
-                    IMAGES_BUCKET_ID,
-                    file.$id,
-                );
+                // const arrayBuffer = await storage.getFileView(
+                //     IMAGES_BUCKET_ID,
+                //     file.$id,
+                // );
 
-                uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString("base64")}`;
+                // uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString("base64")}`;
+                uploadedImageUrl = generateImageUrl(file.$id);
             }
 
             const project = await databases.createDocument<Project>(
@@ -123,6 +126,19 @@ const app = new Hono()
                     workspaceId,
                 },
             );
+
+            // publish message
+            const channel = ably.channels.get(
+                `notification:workspace:${workspaceId}`,
+            );
+
+            await channel.publish("create-project", {
+                userId: user.$id,
+                workspaceId,
+                message: `Project ${name} created`,
+                project: project.$id,
+                timestamp: new Date().toISOString(),
+            });
 
             return c.json({ data: project });
         },
@@ -222,12 +238,13 @@ const app = new Hono()
                     image,
                 );
 
-                const arrayBuffer = await storage.getFileView(
-                    IMAGES_BUCKET_ID,
-                    file.$id,
-                );
+                // const arrayBuffer = await storage.getFileView(
+                //     IMAGES_BUCKET_ID,
+                //     file.$id,
+                // );
 
-                uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString("base64")}`;
+                // uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString("base64")}`;
+                uploadedImageUrl = generateImageUrl(file.$id);
             } else {
                 uploadedImageUrl = image;
             }
@@ -287,6 +304,19 @@ const app = new Hono()
         }
 
         await databases.deleteDocument(DATABASES_ID, PROJECTS_ID, projectId);
+
+        // publish message
+        const channel = ably.channels.get(
+            `notification:workspace:${existingProject.workspaceId}`,
+        );
+
+        await channel.publish("delete-project", {
+            userId: user.$id,
+            workspaceId: existingProject.workspaceId,
+            message: `Project ${existingProject.name} deleted`,
+            project: existingProject.$id,
+            timestamp: new Date().toISOString(),
+        });
 
         return c.json({
             data: {

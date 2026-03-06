@@ -15,6 +15,7 @@ import { getCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 
 import { AUTH_COOKIE } from "@/features/auth/constants";
+//import { sessionArcjet } from "./arcjet";
 
 export type AdditionalContext = {
     Variables: {
@@ -52,6 +53,16 @@ export const sessionMiddleware = createMiddleware<AdditionalContext>(
             console.error("account.get failed", err);
             return c.json({ error: "Unauthorized" }, 401);
         }
+
+        // if (sessionArcjet) {
+        //     const decision = await sessionArcjet.protect(c.req.raw, {
+        //         userId: user?.$id,
+        //     });
+
+        //     if (decision.isDenied()) {
+        //         return c.json({ error: "Too many requests" }, 429);
+        //     }
+        // }
 
         c.set("account", account);
         c.set("databases", databases);

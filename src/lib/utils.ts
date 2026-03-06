@@ -1,3 +1,4 @@
+import { IMAGES_BUCKET_ID } from "@/config/appwrite";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -36,4 +37,8 @@ export function snakeCaseToTitleCase(str: string) {
         .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+export function generateImageUrl(fileId: string) {
+    const convertImageUrl = `${process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT}/storage/buckets/${IMAGES_BUCKET_ID}/files/${fileId}/view?project=${process.env.NEXT_PUBLIC_APPWRITE_PROJECT}`;
 
+    return convertImageUrl;
+}

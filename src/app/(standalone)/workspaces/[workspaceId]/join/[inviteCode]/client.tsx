@@ -23,7 +23,7 @@ export const Client = ({ workspaceId, inviteCode }: ClientProps) => {
 
     return (
         <div className="w-full lg:max-w-xl">
-            <JoinWorkspaceForm inviteCode={inviteCode} name={workspaceInfo.name} />
+            <JoinWorkspaceForm imageUrl={workspaceInfo.imageUrl} inviteCode={inviteCode} name={workspaceInfo.name} />
         </div>
     );
 };

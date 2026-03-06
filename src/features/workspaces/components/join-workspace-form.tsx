@@ -13,15 +13,18 @@ import Link from "next/link";
 import { useJoinWorkspace } from "../api/use-join-workspace";
 import { useWorkspaceId } from "../hooks/use-workspace-id";
 import { useRouter } from "next/navigation";
+import { WorkspaceAvatar } from "./workspace-avatar";
 
 interface JoinWorkspaceFormProps {
     name: string;
     inviteCode: string;
+    imageUrl: string;
 }
 
 export const JoinWorkspaceForm = ({
     name,
     inviteCode,
+    imageUrl,
 }: JoinWorkspaceFormProps) => {
     const router = useRouter();
     const workspaceId = useWorkspaceId();
@@ -45,7 +48,10 @@ export const JoinWorkspaceForm = ({
         <Card className="w-full h-full border-none shadow-none">
             <CardHeader className="p-7">
                 <CardTitle className="text-xl font-bold">
-                    Join workspace
+                    <div className="flex items-center justify-between">
+                        <span>Join workspace</span>
+                        <WorkspaceAvatar name={name} image={imageUrl} />
+                    </div>
                 </CardTitle>
                 <CardDescription>
                     You&apos;ve been invited to join <strong>{name}</strong>{" "}

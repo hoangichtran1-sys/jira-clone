@@ -8,6 +8,7 @@ interface UseGetMembersProps {
 export const useGetMembers = ({ workspaceId }: UseGetMembersProps) => {
     const query = useQuery({
         queryKey: ["members", workspaceId],
+        enabled: !!workspaceId,
         queryFn: async () => {
             const response = await client.api.members.$get({
                 query: { workspaceId },
@@ -21,6 +22,8 @@ export const useGetMembers = ({ workspaceId }: UseGetMembersProps) => {
 
             return data;
         },
+        refetchInterval: 60000,
+        refetchOnWindowFocus: true,
     });
 
     return query;

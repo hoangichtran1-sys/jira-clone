@@ -14,16 +14,22 @@ import {
 } from "@/config/appwrite";
 import { ID, Query } from "node-appwrite";
 import { MemberRole } from "@/features/members/types";
-import { generateInviteCode } from "@/lib/utils";
+import { generateImageUrl, generateInviteCode } from "@/lib/utils";
 import { getMember } from "@/features/members/utils";
 import { Workspace } from "../types";
 import { TaskStatus } from "@/features/tasks/types";
-import { getCurrentWorkspacesIsAdmin } from "../utils";
+import {
+    ensureEmailTarget,
+    getCurrentWorkspacesIsAdmin,
+    validateEmail,
+} from "../utils";
 import { MAX_FREE_WORKSPACE } from "@/constants";
 import { getCurrentSubscription } from "@/features/subscriptions/utils";
 import { render } from "@react-email/render";
 import { InviteEmail } from "../emails/invite-email";
-import { transporter } from "@/lib/nodemailer";
+import { sendEmail } from "@/lib/nodemailer";
+import { createAdminClient } from "@/lib/appwrite";
+import { ably } from "@/lib/ably-rest";
 
 const app = new Hono()
     .post(
@@ -49,6 +55,12 @@ const app = new Hono()
             const { title, link, emailTo } = c.req.valid("json");
             const { workspaceId } = c.req.valid("query");
 
+            const { valid, reason } = await validateEmail(emailTo);
+
+            if (!valid) {
+                return c.json({ error: `Email invalid: ${reason}` }, 400);
+            }
+
             const member = await getMember({
                 databases,
                 workspaceId,
@@ -71,7 +83,7 @@ const app = new Hono()
                 );
             }
 
-            const html = await render(
+            const react = await render(
                 <InviteEmail
                     title={title}
                     link={link}
@@ -79,11 +91,11 @@ const app = new Hono()
                 />,
             );
 
-            const info = await transporter.sendMail({
+            const info = await sendEmail({
                 from: `"Workspace member" <${user.email}>`,
-                to: emailTo,
+                email: emailTo,
                 subject: title,
-                html,
+                html: react,
             });
 
             return c.json({ data: info.messageId });
@@ -177,6 +189,7 @@ const app = new Hono()
             const databases = c.get("databases");
             const storage = c.get("storage");
             const user = c.get("user");
+            const { messaging } = await createAdminClient();
 
             const { name, image } = c.req.valid("form");
 
@@ -214,12 +227,13 @@ const app = new Hono()
                     image,
                 );
 
-                const arrayBuffer = await storage.getFileView(
-                    IMAGES_BUCKET_ID,
-                    file.$id,
-                );
+                // const arrayBuffer = await storage.getFileView(
+                //     IMAGES_BUCKET_ID,
+                //     file.$id,
+                // );
 
-                uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString("base64")}`;
+                // uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString("base64")}`;
+                uploadedImageUrl = generateImageUrl(file.$id);
             }
 
             const workspace = await databases.createDocument<Workspace>(
@@ -234,6 +248,30 @@ const app = new Hono()
                 },
             );
 
+            await messaging.createTopic(
+                `workspace_${workspace.$id}`,
+                workspace.name,
+            );
+
+            const targetId = await ensureEmailTarget({
+                databases,
+                userId: user.$id,
+            });
+
+            if (!targetId) {
+                return c.json({ error: "Failed to get target ID" }, 400);
+            }
+
+            const subscriber = await messaging.createSubscriber(
+                `workspace_${workspace.$id}`,
+                ID.unique(),
+                targetId,
+            );
+
+            if (!subscriber) {
+                return c.json({ error: "Failed to create subscriber" }, 400);
+            }
+
             await databases.createDocument(
                 DATABASES_ID,
                 MEMBERS_ID,
@@ -242,6 +280,7 @@ const app = new Hono()
                     userId: user.$id,
                     workspaceId: workspace.$id,
                     role: MemberRole.ADMIN,
+                    subscriberId: subscriber.$id,
                 },
             );
 
@@ -279,12 +318,13 @@ const app = new Hono()
                     image,
                 );
 
-                const arrayBuffer = await storage.getFileView(
-                    IMAGES_BUCKET_ID,
-                    file.$id,
-                );
+                // const arrayBuffer = await storage.getFileView(
+                //     IMAGES_BUCKET_ID,
+                //     file.$id,
+                // );
 
-                uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString("base64")}`;
+                // uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString("base64")}`;
+                uploadedImageUrl = generateImageUrl(file.$id);
             } else {
                 uploadedImageUrl = image;
             }
@@ -305,6 +345,7 @@ const app = new Hono()
     .delete("/:workspaceId", sessionMiddleware, async (c) => {
         const databases = c.get("databases");
         const user = c.get("user");
+        const { messaging } = await createAdminClient();
 
         const { workspaceId } = c.req.param();
 
@@ -318,7 +359,7 @@ const app = new Hono()
             return c.json({ error: "Unauthorized" }, 401);
         }
 
-        // DELETE members, projects and tasks
+        // DELETE members, projects , topic and tasks
         const membersToDelete = await databases.listDocuments(
             DATABASES_ID,
             MEMBERS_ID,
@@ -371,6 +412,8 @@ const app = new Hono()
             );
         }
 
+        await messaging.deleteTopic(`workspace_${workspaceId}`);
+
         await databases.deleteDocument(
             DATABASES_ID,
             WORKSPACES_ID,
@@ -421,6 +464,7 @@ const app = new Hono()
 
             const databases = c.get("databases");
             const user = c.get("user");
+            const { messaging } = await createAdminClient();
 
             const member = await getMember({
                 databases,
@@ -442,6 +486,25 @@ const app = new Hono()
                 return c.json({ error: "Invalid invite code " }, 400);
             }
 
+            const targetId = await ensureEmailTarget({
+                databases,
+                userId: user.$id,
+            });
+
+            if (!targetId) {
+                return c.json({ error: "Failed to get target ID" }, 400);
+            }
+
+            const subscriber = await messaging.createSubscriber(
+                `workspace_${workspaceId}`,
+                ID.unique(),
+                targetId,
+            );
+
+            if (!subscriber) {
+                return c.json({ error: "Failed to create subscriber" }, 400);
+            }
+
             await databases.createDocument(
                 DATABASES_ID,
                 MEMBERS_ID,
@@ -450,8 +513,20 @@ const app = new Hono()
                     workspaceId,
                     userId: user.$id,
                     role: MemberRole.MEMBER,
+                    subscriberId: subscriber.$id,
                 },
             );
+
+            // publish message
+            const channel = ably.channels.get(
+                `notification:workspace:${workspaceId}`,
+            );
+            await channel.publish("member-join-workspace", {
+                userId: user.$id,
+                workspaceId,
+                message: `Members with email ${user.email} joined workspace`,
+                timestamp: new Date().toISOString(),
+            });
 
             return c.json({ data: workspace });
         },

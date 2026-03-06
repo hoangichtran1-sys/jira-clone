@@ -138,6 +138,7 @@ export const EditWorkspaceForm = ({
     const handleOpenInvitationModal = () => {
         if (shouldBlock) {
             triggerPaywall();
+            return;
         }
         onOpen();
     };

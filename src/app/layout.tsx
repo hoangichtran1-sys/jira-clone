@@ -5,6 +5,9 @@ import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/provider/query-provider";
 import { NuqsAdapter } from "nuqs/adapters/next";
 import { JotaiProvider } from "@/provider/jotai-provider";
+import { ModalProvider } from "@/provider/modal-provider";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { AblyAuthClientProvider } from "@/provider/ably-provider";
 
 import "./globals.css";
 
@@ -28,8 +31,11 @@ export default function RootLayout({
                 >
                     <QueryProvider>
                         <JotaiProvider>
-                            <Toaster />
-                            {children}
+                            {/* <AblyAuthClientProvider> */}
+                                <ModalProvider />
+                                <Toaster />
+                                {children}
+                            {/* </AblyAuthClientProvider> */}
                         </JotaiProvider>
                     </QueryProvider>
                 </body>

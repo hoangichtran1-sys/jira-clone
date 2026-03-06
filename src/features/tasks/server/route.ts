@@ -15,6 +15,7 @@ import { Task, TaskStatus } from "../types";
 import { createAdminClient } from "@/lib/appwrite";
 import { Project } from "@/features/projects/types";
 import { Member } from "@/features/members/types";
+import { ably } from "@/lib/ably-rest";
 
 const app = new Hono()
     .delete("/:taskId", sessionMiddleware, async (c) => {
@@ -39,6 +40,20 @@ const app = new Hono()
         }
 
         await databases.deleteDocument(DATABASES_ID, TASKS_ID, taskId);
+
+        // publish message
+        const channel = ably.channels.get(
+            `notification:workspace:${taskToDelete.workspaceId}`,
+        );
+
+        await channel.publish("delete-task", {
+            userId: user.$id,
+            workspaceId: taskToDelete.workspaceId,
+            message: `Task ${taskToDelete.name} deleted`,
+            project: taskToDelete.projectId,
+            task: taskToDelete.$id,
+            timestamp: new Date().toISOString(),
+        });
 
         return c.json({ data: { $id: taskToDelete.$id } });
     })
@@ -227,6 +242,19 @@ const app = new Hono()
                     position: newPosition,
                 },
             );
+
+            // publish message
+            const channel = ably.channels.get(
+                `notification:workspace:${workspaceId}`,
+            );
+
+            await channel.publish("create-task", {
+                userId: user.$id,
+                workspaceId,
+                message: `Task ${name} created`,
+                project: projectId,
+                timestamp: new Date().toISOString(),
+            });
 
             return c.json({ data: task });
         },

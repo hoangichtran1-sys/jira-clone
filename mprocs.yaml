@@ -4,3 +4,6 @@ procs:
 
   next:
     cmd: ["bun", "run", "dev"]
+
+  cron:
+    cmd: ["bun", "run", "cron:start"]

@@ -15,18 +15,32 @@ import {
     LoaderIcon,
     LogOutIcon,
     CircleDollarSignIcon,
+    ZapIcon,
+    HeadphonesIcon,
+    BellIcon,
 } from "lucide-react";
 import { useGetSubscription } from "@/features/subscriptions/api/use-get-subscription";
 import { useCheckoutSubscription } from "@/features/subscriptions/api/use-checkout-subscription";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
+import { useSetAtom } from "jotai";
+import { userIdAtom } from "../atoms/user-id-atom";
+import { useNotificationModal } from "@/features/workspaces/hooks/use-notification-modal";
 
 export const UserButton = () => {
+    const setUserId = useSetAtom(userIdAtom);
+    const { onOpen } = useNotificationModal();
+
     const { data: user, isLoading } = useCurrent();
     const { mutate: logout, isPending } = useLogout();
     const checkout = useCheckoutSubscription();
     const { data: subscription, isLoading: isLoadingSubscription } =
         useGetSubscription();
+
+    useEffect(() => {
+        if (!isLoading && user) setUserId(user.$id);
+    }, [setUserId, user, isLoading]);
 
     if (isLoading) {
         return (
@@ -39,9 +53,12 @@ export const UserButton = () => {
     if (!user) return null;
 
     const { name, email } = user;
+
     const avatarFallback = name
         ? name.charAt(0).toUpperCase()
         : (email.charAt(0).toUpperCase() ?? "U");
+
+    const isVerifyEmail = user.emailVerification;
 
     return (
         <DropdownMenu modal={false}>
@@ -81,6 +98,19 @@ export const UserButton = () => {
                             </Badge>
                         </div>
                         <p className="text-xs text-neutral-500">{email}</p>
+                        <Badge
+                            variant="outline"
+                            className={cn(
+                                "text-xs",
+                                isVerifyEmail
+                                    ? "text-emerald-500"
+                                    : "text-red-500",
+                            )}
+                        >
+                            {isVerifyEmail
+                                ? "Verified"
+                                : "Unverified (Access the Help Center for email verification support)"}
+                        </Badge>
                     </div>
                 </div>
                 <DottedSeparator className="mb-1" />
@@ -93,10 +123,35 @@ export const UserButton = () => {
                         <Loader2Icon className="size-4 text-muted-foreground animate-spin" />
                     ) : (
                         <>
-                            <CircleDollarSignIcon className="size-4" />
-                            {subscription ? "Manage" : "Upgrade"}
+                            {subscription ? (
+                                <CircleDollarSignIcon className="size-4" />
+                            ) : (
+                                <ZapIcon className="size-4" />
+                            )}
+                            {subscription
+                                ? "Manage Subscription"
+                                : "Upgrade to Pro"}
                         </>
                     )}
+                </DropdownMenuItem>
+                <DottedSeparator className="mb-1" />
+                <DropdownMenuItem className="h-10 flex items-center justify-center font-medium cursor-pointer">
+                    <HeadphonesIcon className="size-4" />
+                    <a
+                        href="https://mail.google.com/mail/u/0/?view=cm&fs=1&to=hoangichtran@gmail.com"
+                        target="_blank"
+                        title="Gmail"
+                    >
+                        Help Center
+                    </a>
+                </DropdownMenuItem>
+                <DottedSeparator className="mb-1" />
+                <DropdownMenuItem
+                    onClick={onOpen}
+                    className="h-10 flex items-center justify-center font-medium cursor-pointer"
+                >
+                    <BellIcon className="size-4" />
+                    Send notification
                 </DropdownMenuItem>
                 <DottedSeparator className="mb-1" />
                 <DropdownMenuItem

@@ -53,6 +53,12 @@ export const SubscriptionModal = () => {
                             Manage tasks across multiple views
                         </p>
                     </li>
+                     <li className="flex items-center">
+                        <CheckCircle2Icon className="size-5 fill-blue-500 text-white" />
+                        <p className="text-sm text-muted-foreground">
+                            Send email with a invite link so others can join the workspace
+                        </p>
+                    </li>
                 </ul>
                 <DialogFooter className="pt-2 mt-4 gap-y-2">
                     <Button

@@ -7,6 +7,7 @@ import { getMember } from "../utils";
 import { DATABASES_ID, MEMBERS_ID } from "@/config/appwrite";
 import { Query } from "node-appwrite";
 import { Member, MemberRole } from "../types";
+import { ably } from "@/lib/ably-rest";
 
 const app = new Hono()
     .get(
@@ -60,8 +61,9 @@ const app = new Hono()
         const { memberId } = c.req.param();
         const user = c.get("user");
         const databases = c.get("databases");
+        const { messaging, users } = await createAdminClient();
 
-        const memberToDelete = await databases.getDocument(
+        const memberToDelete = await databases.getDocument<Member>(
             DATABASES_ID,
             MEMBERS_ID,
             memberId,
@@ -82,6 +84,8 @@ const app = new Hono()
         const isSelf = member.$id === memberToDelete.$id;
         const isAdmin = member.role === MemberRole.ADMIN;
         const isTargetAdmin = memberToDelete.role === MemberRole.ADMIN;
+        const populatedMemberEmail = (await users.get(memberToDelete.userId))
+            .email;
 
         const isLastAdmin =
             memberToDelete.role === MemberRole.ADMIN &&
@@ -114,6 +118,24 @@ const app = new Hono()
         }
 
         await databases.deleteDocument(DATABASES_ID, MEMBERS_ID, memberId);
+
+        // unsubscribe
+        messaging.deleteSubscriber(
+            `workspace_${memberToDelete.workspaceId}`,
+            memberToDelete.subscriberId,
+        );
+
+        // publish message
+        const channel = ably.channels.get(
+            `notification:workspace:${memberToDelete.workspaceId}`,
+        );
+
+        await channel.publish("remove-member", {
+            userId: user.$id,
+            workspaceId: memberToDelete.workspaceId,
+            message: `The member with email ${populatedMemberEmail} has left the workspace.`,
+            timestamp: new Date().toISOString(),
+        });
 
         return c.json({ data: { $id: memberToDelete.$id } });
     })

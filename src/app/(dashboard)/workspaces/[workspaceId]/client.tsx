@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
+import { vi } from "date-fns/locale";
 import { Analytics } from "@/components/analytics";
 import { DottedSeparator } from "@/components/dotted-separator";
 import { PageError } from "@/components/page-error";
@@ -22,6 +23,8 @@ import { Member, MemberRole } from "@/features/members/types";
 import { MemberAvatar } from "@/features/members/components/member-avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { usePresenceListener } from "ably/react";
+import { Hint } from "@/components/hint";
 
 interface ClientProps {
     workspaceId: string;
@@ -130,7 +133,7 @@ export const TaskList = ({ workspaceId, data, total }: TaskListProps) => {
                     </li>
                 </ul>
                 <Button variant="muted" className="mt-4 w-full" asChild>
-                    <Link href={`workspaces/${workspaceId}/tasks`}>
+                    <Link href={`/workspaces/${workspaceId}/tasks`}>
                         Show All
                     </Link>
                 </Button>
@@ -203,6 +206,18 @@ interface MembersListProps {
 }
 
 export const MembersList = ({ workspaceId, data, total }: MembersListProps) => {
+    const { presenceData } = usePresenceListener(
+        `notification:workspace:${workspaceId}`,
+    );
+
+    console.log(presenceData);
+
+    const checkOnline = (userId: string) => {
+        return presenceData.some(
+            (msg) => msg.clientId === `jira-client.${userId}`,
+        );
+    };
+
     return (
         <div className="flex flex-col gap-y-4 col-span-1">
             <div className="bg-white border rounded-lg p-4">
@@ -216,39 +231,80 @@ export const MembersList = ({ workspaceId, data, total }: MembersListProps) => {
                 </div>
                 <DottedSeparator className="my-4" />
                 <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {data.map((member) => (
-                        <li key={member.$id}>
-                            <Card className="shadow-none rounded-lg overflow-hidden">
-                                <CardContent className="p-3 flex flex-col items-center gap-x-2">
-                                    <MemberAvatar
-                                        name={member.name || member.email}
-                                        className="size-12"
-                                    />
-                                    <div className="flex flex-col items-center overflow-hidden">
-                                        <p className="text-lg font-medium line-clamp-1">
-                                            {member.name || member.email}
-                                        </p>
-                                        <p className="text-sm text-muted-foreground line-clamp-1">
-                                            {member.email}
-                                        </p>
-                                        <Badge
-                                            variant="outline"
-                                            className={cn(
-                                                "text-white",
-                                                member.role === MemberRole.ADMIN
-                                                    ? "bg-emerald-500 hover:bg-emerald-600"
-                                                    : "bg-cyan-500 hover:bg-cyan-600",
-                                            )}
+                    {data.map((member) => {
+                        const isOnline = checkOnline(member.userId);
+                        const lastSeenText = member.lastSeen
+                            ? `Truy cập ${formatDistanceToNow(new Date(member.lastSeen), { addSuffix: true, locale: vi })}`
+                            : "Chưa rõ thời gian truy cập";
+                        return (
+                            <li key={member.$id}>
+                                <Card className="shadow-none rounded-lg overflow-hidden">
+                                    <CardContent className="p-3 flex flex-col items-center gap-x-2">
+                                        <Hint
+                                            html={
+                                                <div className="flex flex-col gap-y-0.5">
+                                                    <p className="font-bold">
+                                                        {isOnline
+                                                            ? "Đang trực tuyến"
+                                                            : "Ngoại tuyến"}
+                                                    </p>
+                                                    {!isOnline && (
+                                                        <p className="text-[10px] text-muted-foreground">
+                                                            {lastSeenText}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            }
+                                            side="right"
+                                            className="text-xs"
                                         >
-                                            {member.role === MemberRole.ADMIN
-                                                ? "Admin"
-                                                : "Member"}
-                                        </Badge>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </li>
-                    ))}
+                                            <div className="relative">
+                                                <MemberAvatar
+                                                    name={
+                                                        member.name ||
+                                                        member.email
+                                                    }
+                                                    className="size-12"
+                                                />
+                                                <span
+                                                    className={cn(
+                                                        "absolute bottom-0 right-0 size-3.5 border-2 border-white rounded-full cursor-help shadow-sm",
+                                                        isOnline
+                                                            ? "bg-emerald-500"
+                                                            : "bg-red-500",
+                                                    )}
+                                                />
+                                            </div>
+                                        </Hint>
+                                        <p>{member.name}</p>
+                                        <div className="flex flex-col items-center overflow-hidden">
+                                            <p className="text-lg font-medium line-clamp-1">
+                                                {member.name || member.email}
+                                            </p>
+                                            <p className="text-sm text-muted-foreground line-clamp-1">
+                                                {member.email}
+                                            </p>
+                                            <Badge
+                                                variant="outline"
+                                                className={cn(
+                                                    "text-white",
+                                                    member.role ===
+                                                        MemberRole.ADMIN
+                                                        ? "bg-emerald-500 hover:bg-emerald-600"
+                                                        : "bg-cyan-500 hover:bg-cyan-600",
+                                                )}
+                                            >
+                                                {member.role ===
+                                                MemberRole.ADMIN
+                                                    ? "Admin"
+                                                    : "Member"}
+                                            </Badge>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </li>
+                        );
+                    })}
                     <li className="text-sm text-muted-foreground text-center hidden first-of-type:block">
                         No members found
                     </li>
