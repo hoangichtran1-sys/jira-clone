@@ -1,6 +1,6 @@
 import { AblyChannelClientProvider } from "@/provider/ably-channel-provider";
 import { AblyWorkspaceClientProvider } from "@/provider/ably-provider";
-import { NotificationProvider }  from "@/provider/notification-provider";
+import { NotificationProvider } from "@/provider/notification-provider";
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -17,8 +17,12 @@ const Layout = async ({ children, params }: LayoutProps) => {
             <AblyChannelClientProvider
                 channelName={`notification:workspace:${workspaceId}`}
             >
-                <NotificationProvider workspaceId={workspaceId} />
-                {children}
+                <AblyChannelClientProvider
+                    channelName={`sms:workspace:${workspaceId}`}
+                >
+                    <NotificationProvider workspaceId={workspaceId} />
+                    {children}
+                </AblyChannelClientProvider>
             </AblyChannelClientProvider>
         </AblyWorkspaceClientProvider>
     );

@@ -9,4 +9,4 @@ procs:
     cmd: ["bun", "run", "cron:start"]
 
   worker:
-    cmd: ["bun", "run", "queue:worker"]
+    cmd: ["bun", "run", "queue:work"]

@@ -394,7 +394,7 @@ const app = new Hono()
             }),
         );
 
-        const react = render(
+        const react = await render(
             <WorkspaceDeletedEmail
                 workspaceName={workspaceToDelete.name}
                 deletedBy={user.email}
@@ -454,6 +454,17 @@ const app = new Hono()
             WORKSPACES_ID,
             workspaceId,
         );
+
+        // publish message
+        const channel = ably.channels.get(
+            `notification:workspace:${workspaceId}`,
+        );
+        await channel.publish("delete-workspace", {
+            userId: user.$id,
+            workspaceId,
+            message: `Workspace "${workspaceToDelete.name}" deleted by ${user.email}`,
+            timestamp: new Date().toISOString(),
+        });
 
         return c.json({ data: { $id: workspaceId } });
     })

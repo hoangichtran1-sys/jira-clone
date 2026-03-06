@@ -1,8 +1,13 @@
 import { bootstrap } from "@/lib/bootstrap";
 
-bootstrap();
+async function start() {
+  // load env trc khi run worker
+  bootstrap();
 
-import "./email-worker";
-import "./notification-worker";
+  await import("./email-worker");
+  //await import("./notification-worker");
 
-console.log("Worker is running...");
+  console.log("Worker is running...");
+}
+
+start();

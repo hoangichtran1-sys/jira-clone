@@ -12,7 +12,7 @@
     "dev:all": "mprocs",
     "check:types": "tsc --noEmit",
     "cron:start": "tsx src/crons/index.ts",
-    "queue:worker": "tsx src/workers/index.ts"
+    "queue:work": "tsx src/workers/index.ts"
   },
   "dependencies": {
     "@apminsight/next": "^1.2.3",

@@ -4,6 +4,7 @@ import { userIdAtom } from "@/features/auth/atoms/user-id-atom";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePresence, useChannel } from "ably/react";
 import { useAtomValue } from "jotai";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
@@ -53,6 +54,7 @@ interface ChannelInnerProps {
 
 const ChannelInner = ({ workspaceId, userId }: ChannelInnerProps) => {
     const queryClient = useQueryClient();
+    const router = useRouter();
 
     useChannel(
         `notification:workspace:${workspaceId}`,
@@ -70,6 +72,24 @@ const ChannelInner = ({ workspaceId, userId }: ChannelInnerProps) => {
 
     useChannel(
         `notification:workspace:${workspaceId}`,
+        "delete-workspace",
+        (msg) => {
+            if (msg.data.userId !== userId) {
+                toast.info(msg.data.message, { position: "top-center" });
+            }
+            queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+            queryClient.invalidateQueries({
+                queryKey: ["total-workspace-create"],
+            });
+            // queryClient.invalidateQueries({
+            //     queryKey: ["workspace", msg.data.workspaceId],
+            // });
+            router.push("/");
+        },
+    );
+
+    useChannel(
+        `notification:workspace:${workspaceId}`,
         "remove-member",
         (msg) => {
             if (msg.data.userId !== userId) {
@@ -78,6 +98,7 @@ const ChannelInner = ({ workspaceId, userId }: ChannelInnerProps) => {
             queryClient.invalidateQueries({
                 queryKey: ["members"],
             });
+            router.push("/");
         },
     );
 

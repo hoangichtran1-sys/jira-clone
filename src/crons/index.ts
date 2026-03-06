@@ -1,9 +1,13 @@
-import { bootstrap } from "../lib/bootstrap";
-
-bootstrap();
-
+import { bootstrap } from "@/lib/bootstrap";
 import { initializeCrons } from "./cron";
 
-console.log("Starting cron service...");
+async function start() {
+    // load env trc khi start job
+    bootstrap();
 
-initializeCrons();
+    console.log("Starting cron service...");
+
+    await initializeCrons();
+}
+
+start();

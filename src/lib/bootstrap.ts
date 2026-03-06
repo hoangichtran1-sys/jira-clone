@@ -1,5 +1,8 @@
 import { loadEnvConfig } from "@next/env";
+import path from "path";
 
 export function bootstrap() {
-  loadEnvConfig(process.cwd());
+    console.log(process.cwd());
+    const projectDir = path.resolve(process.cwd());
+    loadEnvConfig(projectDir);
 }

@@ -12,7 +12,7 @@ const emailWorker = new Worker(
                 await sendEmail(job.data);
                 console.log(`✅ Email tới ${job.data.email} đã được gửi`);
                 break;
-                
+
             case "sendEmailWorkspaceDelete":
                 console.log(`📧 Đang gửi email tới ${job.data.email}`);
                 await sendEmail(job.data);
@@ -32,7 +32,7 @@ emailWorker.on("completed", (job) => {
 
 // Xử lý lỗi
 emailWorker.on("failed", (job, err) => {
-    console.log(`${job?.id} has failed with ${err.message}`);
+    console.error(`❌ Job ${job?.id} failed`, err);
 });
 
 export default emailWorker;

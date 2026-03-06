@@ -1,7 +1,3 @@
-import { bootstrap } from "../lib/bootstrap";
-
-bootstrap();
-
 export function getAppwriteEnv() {
     return {
         DATABASES_ID: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
