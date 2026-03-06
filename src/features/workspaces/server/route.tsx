@@ -13,7 +13,7 @@ import {
     WORKSPACES_ID,
 } from "@/config/appwrite";
 import { ID, Query } from "node-appwrite";
-import { MemberRole } from "@/features/members/types";
+import { Member, MemberRole } from "@/features/members/types";
 import { generateImageUrl, generateInviteCode } from "@/lib/utils";
 import { getMember } from "@/features/members/utils";
 import { Workspace } from "../types";
@@ -27,9 +27,10 @@ import { MAX_FREE_WORKSPACE } from "@/constants";
 import { getCurrentSubscription } from "@/features/subscriptions/utils";
 import { render } from "@react-email/render";
 import { InviteEmail } from "../emails/invite-email";
-import { sendEmail } from "@/lib/nodemailer";
 import { createAdminClient } from "@/lib/appwrite";
 import { ably } from "@/lib/ably-rest";
+import { emailQueue } from "@/queues/email-queue";
+import WorkspaceDeletedEmail from "../emails/workspace-delete-email";
 
 const app = new Hono()
     .post(
@@ -91,14 +92,14 @@ const app = new Hono()
                 />,
             );
 
-            const info = await sendEmail({
+            await emailQueue.add("sendEmailInvitation", {
                 from: `"Workspace member" <${user.email}>`,
                 email: emailTo,
                 subject: title,
                 html: react,
             });
 
-            return c.json({ data: info.messageId });
+            return c.json({ data: "Send email successfully" });
         },
     )
     .get("/total-workspace-create", sessionMiddleware, async (c) => {
@@ -345,7 +346,7 @@ const app = new Hono()
     .delete("/:workspaceId", sessionMiddleware, async (c) => {
         const databases = c.get("databases");
         const user = c.get("user");
-        const { messaging } = await createAdminClient();
+        const { messaging, users } = await createAdminClient();
 
         const { workspaceId } = c.req.param();
 
@@ -359,8 +360,14 @@ const app = new Hono()
             return c.json({ error: "Unauthorized" }, 401);
         }
 
+        const workspaceToDelete = await databases.getDocument<Workspace>(
+            DATABASES_ID,
+            WORKSPACES_ID,
+            workspaceId,
+        );
+
         // DELETE members, projects , topic and tasks
-        const membersToDelete = await databases.listDocuments(
+        const membersToDelete = await databases.listDocuments<Member>(
             DATABASES_ID,
             MEMBERS_ID,
             [Query.equal("workspaceId", workspaceId)],
@@ -376,14 +383,42 @@ const app = new Hono()
             [Query.equal("workspaceId", workspaceId)],
         );
 
-        if (membersToDelete.total > 0) {
+        const populatedMembersToDelete = await Promise.all(
+            membersToDelete.documents.map(async (member) => {
+                const user = await users.get(member.userId);
+
+                return {
+                    ...member,
+                    email: user.email,
+                };
+            }),
+        );
+
+        const react = render(
+            <WorkspaceDeletedEmail
+                workspaceName={workspaceToDelete.name}
+                deletedBy={user.email}
+                deletedAt={new Date().toLocaleString()}
+            />,
+        );
+
+        if (populatedMembersToDelete.length > 0) {
             await Promise.all(
-                membersToDelete.documents.map(async (member) => {
-                    await databases.deleteDocument(
-                        DATABASES_ID,
-                        MEMBERS_ID,
-                        member.$id,
-                    );
+                populatedMembersToDelete.map(async (member) => {
+                    Promise.all([
+                        await databases.deleteDocument(
+                            DATABASES_ID,
+                            MEMBERS_ID,
+                            member.$id,
+                        ),
+                        // co the ko can gui cho chinh minh tuc nguoi da tao ra workspace do
+                        await emailQueue.add("sendEmailWorkspaceDelete", {
+                            from: `"Workspace admin" <${user.email}>`,
+                            email: member.email,
+                            subject: `Workspace "${workspaceToDelete.name}" deleted`,
+                            html: react,
+                        }),
+                    ]);
                 }),
             );
         }

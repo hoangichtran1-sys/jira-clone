@@ -1,4 +1,4 @@
-import { bootstrap } from "./bootstrap";
+import { bootstrap } from "../lib/bootstrap";
 
 bootstrap();
 
