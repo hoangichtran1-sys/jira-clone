@@ -1,13 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ID, Query } from "node-appwrite";
 import { Task, TaskStatus } from "@/features/tasks/types";
-import { getAppwriteEnv } from "../env";
 import { ensureEmailTarget } from "@/features/workspaces/utils";
-import { createAdminClient } from "../../lib/appwrite-client";
+import { createAdminClient } from "@/lib/appwrite-client";
 import { getAssigneeUser } from "@/features/tasks/utils";
+import { DATABASES_ID, TASKS_ID } from "@/config/appwrite";
 
 export const processTaskReminder = async () => {
-    const { DATABASES_ID, TASKS_ID } = getAppwriteEnv();
     try {
         const { databases, messaging } = await createAdminClient();
 

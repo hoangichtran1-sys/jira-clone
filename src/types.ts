@@ -10,3 +10,10 @@ export type UserTargetEmail = Models.Document & {
     userId: string;
     emailTargetId: string;
 }
+
+export type EmailJobData = {
+    from: string;
+    email: string;
+    subject: string;
+    html: string;
+};

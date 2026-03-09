@@ -29,7 +29,10 @@ import { render } from "@react-email/render";
 import { InviteEmail } from "../emails/invite-email";
 import { createAdminClient } from "@/lib/appwrite";
 import { ably } from "@/lib/ably-rest";
-import { emailQueue } from "@/queues/email-queue";
+import {
+    enqueueSendEmailDeleteWorkspace,
+    enqueueSendEmailInvitation,
+} from "@/queues/email-queue";
 import WorkspaceDeletedEmail from "../emails/workspace-delete-email";
 
 const app = new Hono()
@@ -92,7 +95,7 @@ const app = new Hono()
                 />,
             );
 
-            await emailQueue.add("sendEmailInvitation", {
+            await enqueueSendEmailInvitation({
                 from: `"Workspace member" <${user.email}>`,
                 email: emailTo,
                 subject: title,
@@ -412,7 +415,7 @@ const app = new Hono()
                             member.$id,
                         ),
                         // co the ko can gui cho chinh minh tuc nguoi da tao ra workspace do
-                        await emailQueue.add("sendEmailWorkspaceDelete", {
+                        await enqueueSendEmailDeleteWorkspace({
                             from: `"Workspace admin" <${user.email}>`,
                             email: member.email,
                             subject: `Workspace "${workspaceToDelete.name}" deleted`,

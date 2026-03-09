@@ -8,6 +8,7 @@ import projects from "@/features/projects/server/route";
 import tasks from "@/features/tasks/server/route";
 import subscriptions from "@/features/subscriptions/server/route";
 import ably from "./ably";
+import bull from "./bull"
 import { baseSecurityMiddleware } from "@/lib/security-middleware";
 
 export const runtime = "nodejs";
@@ -43,11 +44,13 @@ const routes = app
     .route("/projects", projects)
     .route("/tasks", tasks)
     .route("/subscriptions", subscriptions)
+    .route("/admin/bull", bull)
     .route("/ably", ably);
 
 export const GET = handle(app);
 export const POST = handle(app);
 export const PATCH = handle(app);
 export const DELETE = handle(app);
+export const PUT = handle(app);
 
 export type AppType = typeof routes;

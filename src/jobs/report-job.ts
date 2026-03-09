@@ -2,12 +2,10 @@
 import { TaskStatus } from "@/features/tasks/types";
 import { Workspace } from "@/features/workspaces/types";
 import { Query, ID } from "node-appwrite";
-import { createAdminClient } from "../../lib/appwrite-client";
-import { getAppwriteEnv } from "../env";
+import { createAdminClient } from "@/lib/appwrite-client";
+import { DATABASES_ID, PROJECTS_ID, TASKS_ID, WORKSPACES_ID } from "@/config/appwrite";
 
 export const processReportJob = async () => {
-    const { DATABASES_ID, TASKS_ID, WORKSPACES_ID, PROJECTS_ID } =
-        getAppwriteEnv();
     try {
         const { databases, messaging } = await createAdminClient();
 

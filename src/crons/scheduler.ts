@@ -4,7 +4,7 @@ import { processReportJob } from "./jobs/report.job";
 
 export const startJobs = () => {
     return [
-        scheduleJob("Reports", "0 6 * * 1", processReportJob),
-        scheduleJob("Task Reminder", "0 7 * * *", processTaskReminder)
+        scheduleJob("Reports", "* * * * *", processReportJob),
+        scheduleJob("Task Reminder", "* * * * *", processTaskReminder)
     ];
 };

@@ -5,8 +5,5 @@ procs:
   next:
     cmd: ["bun", "run", "dev"]
 
-  cron:
-    cmd: ["bun", "run", "cron:start"]
-
   worker:
     cmd: ["bun", "run", "queue:work"]

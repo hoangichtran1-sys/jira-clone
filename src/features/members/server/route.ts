@@ -8,6 +8,7 @@ import { DATABASES_ID, MEMBERS_ID } from "@/config/appwrite";
 import { Query } from "node-appwrite";
 import { Member, MemberRole } from "../types";
 import { ably } from "@/lib/ably-rest";
+import { enqueueSendEmailDeleteMember } from "@/queues/email-queue";
 
 const app = new Hono()
     .get(
@@ -133,8 +134,19 @@ const app = new Hono()
         await channel.publish("remove-member", {
             userId: user.$id,
             workspaceId: memberToDelete.workspaceId,
+            memberIdToDelete: memberToDelete.userId,
             message: `The member with email ${populatedMemberEmail} has left the workspace.`,
             timestamp: new Date().toISOString(),
+        });
+
+        await enqueueSendEmailDeleteMember({
+            from: `"Workspace admin" <${user.email}>`,
+            email: populatedMemberEmail,
+            subject: `Member deleted from workspace "${memberToDelete.workspaceId}"`,
+            html: `
+                <p>You have been removed from the workspace group by the        administrator.</p><br>
+                <p>Contact them for more details.</p>
+            `,
         });
 
         return c.json({ data: { $id: memberToDelete.$id } });

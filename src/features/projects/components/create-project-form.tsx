@@ -90,7 +90,7 @@ export const CreateProjectForm = ({
                             </p>
                         ) : (
                             <p className="text-sm text-muted-foreground truncate">
-                                Total project: {totalProject} (Unlimited)
+                                Total project: {totalProject || 0} (Unlimited)
                             </p>
                         )}
                     </div>

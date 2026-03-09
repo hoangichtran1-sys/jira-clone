@@ -88,7 +88,7 @@ export const CreateWorkspaceForm = ({
                             </p>
                         ) : (
                             <p className="text-sm text-muted-foreground truncate">
-                                Total project: {totalWorkspace} (Unlimited)
+                                Total project: {totalWorkspace || 0} (Unlimited)
                             </p>
                         )}
                     </div>

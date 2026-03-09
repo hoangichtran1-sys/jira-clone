@@ -98,7 +98,9 @@ const ChannelInner = ({ workspaceId, userId }: ChannelInnerProps) => {
             queryClient.invalidateQueries({
                 queryKey: ["members"],
             });
-            router.push("/");
+            if (msg.data.memberIdToDelete === userId) {
+                router.push("/");
+            }
         },
     );
 

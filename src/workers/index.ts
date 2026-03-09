@@ -1,13 +1,29 @@
 import { bootstrap } from "@/lib/bootstrap";
 
-async function start() {
-  // load env trc khi run worker
-  bootstrap();
+async function startWorker() {
+    try {
+        bootstrap();
 
-  await import("./email-worker");
-  //await import("./notification-worker");
+        console.log("REDIS_URL:", process.env.REDIS_URL ? "Đã tìm thấy ✅" : "Không tồn tại ❌");
 
-  console.log("Worker is running...");
+        const { loadWorkers } = await import("./load-workers");
+        const { enqueueReportCronJob } = await import("@/queues/report-queue");
+        const { enqueueTaskReminderCronJob } = await import("@/queues/task-reminder-queue");
+
+        await loadWorkers();
+        console.log("🚀 All workers started successfully");
+
+        await Promise.all([
+            enqueueReportCronJob(), 
+            enqueueTaskReminderCronJob()
+        ]);
+        
+        console.log("📅 Cron jobs enqueued");
+
+    } catch (error) {
+        console.error("❌ Lỗi trong quá trình khởi động Worker:", error);
+        process.exit(1);
+    }
 }
 
-start();
+startWorker();
