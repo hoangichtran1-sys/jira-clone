@@ -428,13 +428,13 @@ const app = new Hono()
 
         if (projectsToDelete.total > 0) {
             await Promise.all(
-                projectsToDelete.documents.map(async (project) => {
-                    await databases.deleteDocument(
+                projectsToDelete.documents.map((project) =>
+                    databases.deleteDocument(
                         DATABASES_ID,
                         PROJECTS_ID,
                         project.$id,
-                    );
-                }),
+                    ),
+                ),
             );
         }
 

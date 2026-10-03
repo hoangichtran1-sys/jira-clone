@@ -488,13 +488,9 @@ const app = new Hono()
             }
 
             await Promise.all(
-                taskIds.map(async (taskId) => {
-                    return databases.deleteDocument(
-                        DATABASES_ID,
-                        TASKS_ID,
-                        taskId,
-                    );
-                }),
+                taskIds.map((taskId) =>
+                    databases.deleteDocument(DATABASES_ID, TASKS_ID, taskId),
+                ),
             );
 
             return c.json({

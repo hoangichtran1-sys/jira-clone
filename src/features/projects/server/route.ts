@@ -293,13 +293,9 @@ const app = new Hono()
 
         if (tasksToDelete.total > 0) {
             await Promise.all(
-                tasksToDelete.documents.map(async (task) => {
-                    await databases.deleteDocument(
-                        DATABASES_ID,
-                        TASKS_ID,
-                        task.$id,
-                    );
-                }),
+                tasksToDelete.documents.map((task) =>
+                    databases.deleteDocument(DATABASES_ID, TASKS_ID, task.$id),
+                ),
             );
         }
 
