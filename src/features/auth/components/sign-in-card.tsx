@@ -114,12 +114,12 @@ export const SignInCard = () => {
                                 <FormItem>
                                     <FormControl>
                                         <InputGroup>
+                                            <InputGroupInput
+                                                {...field}
+                                                type="password"
+                                                placeholder="Enter password"
+                                             />
                                             <InputGroupAddon>
-                                                <InputGroupInput
-                                                    {...field}
-                                                    type="password"
-                                                    placeholder="Enter password"
-                                                />
                                                 <LockIcon />
                                             </InputGroupAddon>
                                         </InputGroup>
