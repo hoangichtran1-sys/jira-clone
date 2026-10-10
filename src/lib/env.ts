@@ -42,9 +42,6 @@ export const env = createEnv({
         MAIL_PASSWORD: z.string().min(1),
         EMAIL_FROM: z.string().email(),
 
-        PUSHER_APP_ID: z.string().min(1),
-        PUSHER_SECRET: z.string().min(1),
-
         ARCJET_ENV: z
             .union([z.literal("development"), z.literal("production")])
             .default("development"),
@@ -54,13 +51,6 @@ export const env = createEnv({
             .default("LIVE"),
 
         REDIS_URL: z.string().min(1),
-        EMAIL_CONCURRENCY: z.coerce.number().int().positive().default(5),
-        REPORT_CONCURRENCY: z.coerce.number().int().positive().default(3),
-        TASK_REMINDER_CONCURRENCY: z.coerce
-            .number()
-            .int()
-            .positive()
-            .default(3),
 
         TRIGGER_SECRET_KEY: z.string().min(1),
     },

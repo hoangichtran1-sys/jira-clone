@@ -6,6 +6,8 @@ import { EditTaskModal } from "@/features/tasks/components/edit-task-modal";
 import { CreateWorkspaceModal } from "@/features/workspaces/components/create-workspace-modal";
 import React from "react";
 
+export const dynamic = "force-dynamic";
+
 interface LayoutProps {
     children: React.ReactNode;
 }
