@@ -13,7 +13,7 @@ import { useGetProjects } from "@/features/projects/api/use-get-projects";
 import { useCreateProjectModal } from "@/features/projects/hooks/use-create-project-modal";
 import { useGetTasks } from "@/features/tasks/api/use-get-tasks";
 import { useCreateTaskModal } from "@/features/tasks/hooks/use-create-task-modal";
-import { Task } from "@/features/tasks/types";
+import { TaskPopulated } from "@/features/tasks/types";
 import { useGetWorkspaceAnalytics } from "@/features/workspaces/api/use-get-workspace-analytics";
 import { PlusIcon, CalendarIcon, SettingsIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,21 +25,41 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { usePresenceListener } from "ably/react";
 import { Hint } from "@/components/hint";
+import { ErrorResponse } from "@/types";
 
 interface ClientProps {
     workspaceId: string;
 }
 
 export const Client = ({ workspaceId }: ClientProps) => {
-    const { data: analytics, isLoading: isLoadingAnalytics } =
-        useGetWorkspaceAnalytics({ workspaceId });
-    const { data: tasks, isLoading: isLoadingTasks } = useGetTasks({
+    const {
+        data: analytics,
+        isLoading: isLoadingAnalytics,
+        isError: isErrorAnalytics,
+        error: errorAnalytics,
+    } = useGetWorkspaceAnalytics({ workspaceId });
+    const {
+        data: tasks,
+        isLoading: isLoadingTasks,
+        isError: isErrorTasks,
+        error: errorTasks,
+    } = useGetTasks({
         workspaceId,
     });
-    const { data: projects, isLoading: isLoadingProjects } = useGetProjects({
+    const {
+        data: projects,
+        isLoading: isLoadingProjects,
+        isError: isErrorProjects,
+        error: errorProjects,
+    } = useGetProjects({
         workspaceId,
     });
-    const { data: members, isLoading: isLoadingMembers } = useGetMembers({
+    const {
+        data: members,
+        isLoading: isLoadingMembers,
+        isError: isErrorMembers,
+        error: errorMembers,
+    } = useGetMembers({
         workspaceId,
     });
 
@@ -48,9 +68,27 @@ export const Client = ({ workspaceId }: ClientProps) => {
         isLoadingTasks ||
         isLoadingProjects ||
         isLoadingMembers;
+    const isError =
+        isErrorAnalytics || isErrorMembers || isErrorProjects || isErrorTasks;
 
     if (isLoading) {
         return <PageLoader />;
+    }
+
+    if (isError) {
+        const allError = Array(
+            new Set([
+                errorAnalytics &&
+                    (errorAnalytics as unknown as ErrorResponse).error,
+                errorMembers &&
+                    (errorMembers as unknown as ErrorResponse).error,
+                errorProjects &&
+                    (errorProjects as unknown as ErrorResponse).error,
+                errorTasks && (errorTasks as unknown as ErrorResponse).error,
+            ]),
+        );
+
+        return <PageError message={allError.join("\n")} />;
     }
 
     if (!analytics || !tasks || !projects || !members) {
@@ -68,7 +106,7 @@ export const Client = ({ workspaceId }: ClientProps) => {
                 />
                 <ProjectList
                     workspaceId={workspaceId}
-                    data={projects.documents}
+                    data={projects.rows}
                     total={projects.total}
                 />
                 <MembersList
@@ -82,7 +120,7 @@ export const Client = ({ workspaceId }: ClientProps) => {
 };
 
 interface TaskListProps {
-    data: Task[];
+    data: TaskPopulated[];
     total: number;
     workspaceId: string;
 }
@@ -112,7 +150,7 @@ export const TaskList = ({ workspaceId, data, total }: TaskListProps) => {
                                             {task.name}
                                         </p>
                                         <div className="flex items-center gap-x-2">
-                                            <p>{task.project?.name}</p>
+                                            <p>{task.project.name}</p>
                                             <div className="size-1 rounded-full bg-neutral-300" />
                                             <div className="text-sm text-muted-foreground flex items-center">
                                                 <CalendarIcon className="size-3 mr-1" />
@@ -264,6 +302,7 @@ export const MembersList = ({ workspaceId, data, total }: MembersListProps) => {
                                                         member.name ||
                                                         member.email
                                                     }
+                                                    avatarUserId={member.userId}
                                                     className="size-12"
                                                 />
                                                 <span

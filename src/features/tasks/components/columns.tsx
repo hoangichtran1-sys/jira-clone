@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { Task } from "../types";
+import { TaskPopulated } from "../types";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDownIcon, MoreVerticalIcon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,8 +11,9 @@ import { TaskDate } from "./task-date";
 import { Badge } from "@/components/ui/badge";
 import { snakeCaseToTitleCase } from "@/lib/utils";
 import { TaskActions } from "./task-actions";
+import { USER_NAME_FALLBACK } from "@/constants";
 
-export const columns: ColumnDef<Task>[] = [
+export const columns: ColumnDef<TaskPopulated>[] = [
     {
         id: "select",
         header: ({ table }) => (
@@ -55,12 +56,12 @@ export const columns: ColumnDef<Task>[] = [
         cell: ({ row }) => {
             const name = row.original.name;
 
-            return <p className="line-clamp-1">{name}</p>
-        }
+            return <p className="line-clamp-1">{name}</p>;
+        },
     },
     {
         accessorKey: "project",
-         header: ({ column }) => {
+        header: ({ column }) => {
             return (
                 <Button
                     variant="ghost"
@@ -80,17 +81,17 @@ export const columns: ColumnDef<Task>[] = [
                 <div className="flex items-center gap-x-2 text-sm font-medium">
                     <ProjectAvatar
                         className="size-6"
-                        name={project.name}
+                        name={project?.name}
                         image={project.imageUrl}
                     />
                     <p className="line-clamp-1">{project.name}</p>
                 </div>
-            )
-        }
+            );
+        },
     },
     {
         accessorKey: "assignee",
-         header: ({ column }) => {
+        header: ({ column }) => {
             return (
                 <Button
                     variant="ghost"
@@ -111,16 +112,19 @@ export const columns: ColumnDef<Task>[] = [
                     <MemberAvatar
                         className="size-6"
                         fallbackClassName="text-xs"
-                        name={assignee.name}
+                        name={assignee?.name || USER_NAME_FALLBACK}
+                        avatarUserId={assignee?.userId}
                     />
-                    <p className="line-clamp-1">{assignee.name}</p>
+                    <p className="line-clamp-1">
+                        {assignee?.name || USER_NAME_FALLBACK}
+                    </p>
                 </div>
-            )
-        }
+            );
+        },
     },
     {
         accessorKey: "dueDate",
-         header: ({ column }) => {
+        header: ({ column }) => {
             return (
                 <Button
                     variant="ghost"
@@ -136,14 +140,12 @@ export const columns: ColumnDef<Task>[] = [
         cell: ({ row }) => {
             const dueDate = row.original.dueDate;
 
-            return (
-                <TaskDate value={dueDate} />
-            )
-        }
+            return <TaskDate value={dueDate} />;
+        },
     },
     {
         accessorKey: "status",
-         header: ({ column }) => {
+        header: ({ column }) => {
             return (
                 <Button
                     variant="ghost"
@@ -160,11 +162,9 @@ export const columns: ColumnDef<Task>[] = [
             const status = row.original.status;
 
             return (
-                <Badge variant={status}>
-                    {snakeCaseToTitleCase(status)}
-                </Badge>
-            )
-        }
+                <Badge variant={status}>{snakeCaseToTitleCase(status)}</Badge>
+            );
+        },
     },
     {
         id: "actions",
@@ -178,7 +178,7 @@ export const columns: ColumnDef<Task>[] = [
                         <MoreVerticalIcon className="size-4" />
                     </Button>
                 </TaskActions>
-            )
-        }
-    }
+            );
+        },
+    },
 ];

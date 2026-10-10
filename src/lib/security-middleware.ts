@@ -1,14 +1,15 @@
 import { createMiddleware } from "hono/factory";
+import { HTTPException } from "hono/http-exception";
 import { authArcjet, baseArcjet } from "./arcjet";
 
 function isExcluded(path: string) {
-  if (path.startsWith("/api/ably/")) return true;
+    if (path.startsWith("/api/ably/")) return true;
 
-  return [
-    "/api/subscriptions/webhook",
-    "/api/auth/login",
-    "/api/auth/register",
-  ].includes(path);
+    return [
+        "/api/subscriptions/webhook",
+        "/api/auth/login",
+        "/api/auth/register",
+    ].includes(path);
 }
 
 export const authSecurityMiddleware = createMiddleware(async (c, next) => {
@@ -19,16 +20,16 @@ export const authSecurityMiddleware = createMiddleware(async (c, next) => {
 
         if (decision.isDenied()) {
             if (decision.reason?.isRateLimit()) {
-                return c.json({ error: "Too many requests" }, 429);
+                throw new HTTPException(429, { message: "Too many requests" });
             } else if (decision?.reason.isBot()) {
-                return c.json({ error: "No bots allowed" }, 403);
+                throw new HTTPException(403, { message: "No bots allowed" });
             } else {
-                return c.json({ error: "Forbidden" }, 403);
+                throw new HTTPException(403, { message: "Forbidden" });
             }
         }
     } catch (error) {
         console.error("Arcjet middleware error", error);
-        return c.json({ error: "Service Unavailable" }, 503);
+        throw new HTTPException(503, { message: "Service Unavailable" });
     }
 
     await next();
@@ -38,7 +39,7 @@ export const baseSecurityMiddleware = createMiddleware(async (c, next) => {
     if (isExcluded(c.req.path)) {
         return next();
     }
-    
+
     if (!baseArcjet) return next();
 
     try {
@@ -46,16 +47,18 @@ export const baseSecurityMiddleware = createMiddleware(async (c, next) => {
 
         if (decision.isDenied()) {
             if (decision.reason?.isRateLimit()) {
-                return c.json({ error: "Too many requests" }, 429);
+                throw new HTTPException(429, {
+                    message: "Too many requests",
+                });
             } else if (decision.reason?.isBot()) {
-                return c.json({ error: "No bots allowed" }, 403);
+                throw new HTTPException(403, { message: "No bots allowed" });
             } else {
-                return c.json({ error: "Forbidden" }, 403);
+                throw new HTTPException(403, { message: "Forbidden" });
             }
         }
     } catch (error) {
         console.error("Arcjet middleware error", error);
-        return c.json({ error: "Service Unavailable" }, 503);
+        throw new HTTPException(503, { message: "Service Unavailable" });
     }
 
     await next();

@@ -5,10 +5,11 @@ export const useGetTotalWorkspaceCreate = () => {
     const query = useQuery({
         queryKey: ["total-workspace-create"],
         queryFn: async () => {
-            const response = await client.api.workspaces["total-workspace-create"].$get();
+            const response =
+                await client.api.workspaces["total-workspace-create"].$get();
 
             if (!response.ok) {
-                throw new Error("Failed to fetch total workspace");
+                return null;
             }
 
             const { data } = await response.json();

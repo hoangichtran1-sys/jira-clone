@@ -3,7 +3,7 @@
 import { DottedSeparator } from "@/components/dotted-separator";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LoaderIcon, PlusIcon } from "lucide-react";
+import { AlertTriangleIcon, LoaderIcon, PlusIcon } from "lucide-react";
 import { useCreateTaskModal } from "../hooks/use-create-task-modal";
 import { useGetTasks } from "../api/use-get-tasks";
 import { useWorkspaceId } from "@/features/workspaces/hooks/use-workspace-id";
@@ -21,6 +21,7 @@ import { useConfirm } from "@/hooks/use-confirm";
 import { useAtomValue, useSetAtom } from "jotai";
 import { taskViewAtom } from "../atoms/task-view-atom";
 import { usePaywall } from "@/features/subscriptions/hooks/use-paywall";
+import { ErrorResponse } from "@/types";
 
 interface TaskViewSwitcherProps {
     hideProjectFilter?: boolean;
@@ -51,7 +52,12 @@ export const TaskViewSwitcher = ({
     const workspaceId = useWorkspaceId();
     const { open } = useCreateTaskModal();
 
-    const { data: tasks, isLoading: isLoadingTasks } = useGetTasks({
+    const {
+        data: tasks,
+        isLoading: isLoadingTasks,
+        isError: isErrorTasks,
+        error: errorTasks,
+    } = useGetTasks({
         workspaceId,
         status,
         assigneeId,
@@ -59,6 +65,9 @@ export const TaskViewSwitcher = ({
         dueDate,
         search,
     });
+
+    const isError = isErrorTasks;
+    const error = errorTasks && (errorTasks as unknown as ErrorResponse).error;
 
     const { mutate: bulkUpdateTasks } = useBulkUpdateTasks();
     const bulkDeleteTasks = useBulkDeleteTasks();
@@ -118,6 +127,14 @@ export const TaskViewSwitcher = ({
                     <DottedSeparator className="my-4" />
                     <DataFilters hideProjectFilter={hideProjectFilter} />
                     <DottedSeparator className="my-4" />
+                    {isError && (
+                        <div className="w-full border rounded-lg h-[200px] flex flex-col items-center justify-center">
+                            <AlertTriangleIcon className="size-5 text-muted-foreground" />
+                            <p className="text-sm font-medium text-muted-foreground whitespace-pre-line">
+                                {error}
+                            </p>
+                        </div>
+                    )}
                     {isLoadingTasks ? (
                         <div className="w-full border rounded-lg h-[200px] flex flex-col items-center justify-center">
                             <LoaderIcon className="size-5 animate-spin text-muted-foreground" />

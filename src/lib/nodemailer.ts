@@ -1,25 +1,20 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
+import { env } from "./env";
 
-export const transporterOauth = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        type: "OAuth2",
-        user: process.env.GOOGLE_USERNAME,
-        clientId: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
-    },
-});
+let transporter: Transporter | null = null;
 
-export const transporterUserPass = nodemailer.createTransport({
-    host: process.env.MAIL_HOST,
-    port: Number(process.env.MAIL_PORT),
-    secure: process.env.MAIL_SECURE === "true",
-    auth: {
-        user: process.env.MAIL_USERNAME,
-        pass: process.env.MAIL_PASSWORD,
-    },
-    tls: {
-        rejectUnauthorized: false,
-    },
-});
+export function getTransporter() {
+    if (transporter) return transporter;
+    const host = env.MAIL_HOST;
+    const port = env.MAIL_PORT;
+    const user = env.MAIL_USERNAME;
+    const pass = env.MAIL_PASSWORD;
+
+    transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass },
+    });
+    return transporter;
+}

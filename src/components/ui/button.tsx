@@ -21,6 +21,7 @@ const buttonVariants = cva(
                 muted: "bg-neutral-200 text-neutral-600 hover:bg-neutral-200/80",
                 tertiary:
                     "bg-blue-100 text-blue-600 border-transparent hover:bg-blue-200 shadow-none",
+                link: "text-primary underline-offset-4 hover:underline",
             },
             size: {
                 default: "h-10 px-4 py-2",

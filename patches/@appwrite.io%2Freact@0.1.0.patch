@@ -1,0 +1,30 @@
+diff --git a/dist/esm/server-Pykqu5P-.js b/dist/esm/server-Pykqu5P-.js
+index 4f8b8c599678e084ddf61d28a9e2105c1da4e520..775ef60ca34881afa511b4dc29100a767bff5596 100644
+--- a/dist/esm/server-Pykqu5P-.js
++++ b/dist/esm/server-Pykqu5P-.js
+@@ -1,5 +1,6 @@
++// Remove service Health and Usage in sdk-appwrite-react
+ import { toPlain } from "./utils-DuFEB3yB.js";
+-import { Account, Activities, Advisor, AppwriteException, Avatars, Backups, Client, Databases, Functions, Graphql, Health, Locale, Messaging, Organization, Presences, Project, Proxy, Sites, Storage, TablesDB, Teams, Tokens, Usage, Users, Webhooks } from "node-appwrite";
++import { Account, Activities, Advisor, AppwriteException, Avatars, Backups, Client, Databases, Functions, Graphql, Locale, Messaging, Organization, Presences, Project, Proxy, Sites, Storage, TablesDB, Teams, Tokens, Users, Webhooks } from "node-appwrite";
+ 
+ //#region src/core/node-client.ts
+ function buildNodeSessionClient(config, session) {
+@@ -21,7 +22,7 @@ function buildAdminClient(config, apiKey) {
+ 		databases: new Databases(client),
+ 		functions: new Functions(client),
+ 		graphql: new Graphql(client),
+-		health: new Health(client),
++		// health: new Health(client),
+ 		locale: new Locale(client),
+ 		messaging: new Messaging(client),
+ 		organization: new Organization(client),
+@@ -33,7 +34,7 @@ function buildAdminClient(config, apiKey) {
+ 		tablesDB: new TablesDB(client),
+ 		teams: new Teams(client),
+ 		tokens: new Tokens(client),
+-		usage: new Usage(client),
++		// usage: new Usage(client),
+ 		users: new Users(client),
+ 		webhooks: new Webhooks(client)
+ 	};

@@ -1,7 +1,8 @@
-import { zValidator } from "@hono/zod-validator";
-import { z } from "zod";
-import { endOfMonth, startOfMonth, subMonths } from "date-fns";
 import { Hono } from "hono";
+import { z } from "zod";
+import { HTTPException } from "hono/http-exception";
+import { tasks } from "@trigger.dev/sdk";
+import { endOfMonth, startOfMonth, subMonths } from "date-fns";
 import { createWorkspaceSchema, updateWorkspaceSchema } from "../schemas";
 import { sessionMiddleware } from "@/lib/session-middleware";
 import {
@@ -14,10 +15,10 @@ import {
 } from "@/config/appwrite";
 import { ID, Query } from "node-appwrite";
 import { Member, MemberRole } from "@/features/members/types";
-import { generateImageUrl, generateInviteCode } from "@/lib/utils";
+import { generateInviteCode } from "@/lib/utils";
 import { getMember } from "@/features/members/utils";
 import { Workspace } from "../types";
-import { TaskStatus } from "@/features/tasks/types";
+import { Task, TaskStatus } from "@/features/tasks/types";
 import {
     ensureEmailTarget,
     getCurrentWorkspacesIsAdmin,
@@ -29,22 +30,30 @@ import { render } from "@react-email/render";
 import { InviteEmail } from "../emails/invite-email";
 import { createAdminClient } from "@/lib/appwrite";
 import { ably } from "@/lib/ably-rest";
-import {
-    enqueueSendEmailDeleteWorkspace,
-    enqueueSendEmailInvitation,
-} from "@/queues/email-queue";
+import type {
+    sendEmailInvitation,
+    sendEmailDeleteWorkspace,
+} from "@/trigger/send-mail-tasks";
 import WorkspaceDeletedEmail from "../emails/workspace-delete-email";
+import { zodValidator } from "@/lib/zod-validator";
+import { Project } from "@/features/projects/types";
+
+export function generateImageUrl(fileId: string) {
+    const convertImageUrl = `${process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT}/storage/buckets/${IMAGES_BUCKET_ID}/files/${fileId}/view?project=${process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID}`;
+
+    return convertImageUrl;
+}
 
 const app = new Hono()
     .post(
         "/send-email-invitation",
-        zValidator(
+        zodValidator(
             "query",
             z.object({
                 workspaceId: z.string(),
             }),
         ),
-        zValidator(
+        zodValidator(
             "json",
             z.object({
                 title: z.string().min(1, "Title is required"),
@@ -62,7 +71,9 @@ const app = new Hono()
             const { valid, reason } = await validateEmail(emailTo);
 
             if (!valid) {
-                return c.json({ error: `Email invalid: ${reason}` }, 400);
+                throw new HTTPException(400, {
+                    message: `Email invalid ${reason}`,
+                });
             }
 
             const member = await getMember({
@@ -72,7 +83,7 @@ const app = new Hono()
             });
 
             if (!member) {
-                return c.json({ error: "Unauthorized" }, 401);
+                throw new HTTPException(401, { message: "Unauthorized" });
             }
 
             const currentSubscription = await getCurrentSubscription({
@@ -81,10 +92,9 @@ const app = new Hono()
             });
 
             if (!currentSubscription) {
-                return c.json(
-                    { error: "You need to upgrade your account to premium" },
-                    403,
-                );
+                throw new HTTPException(403, {
+                    message: "You need to upgrade your account to premium",
+                });
             }
 
             const react = await render(
@@ -95,12 +105,17 @@ const app = new Hono()
                 />,
             );
 
-            await enqueueSendEmailInvitation({
-                from: `"Workspace member" <${user.email}>`,
-                email: emailTo,
-                subject: title,
-                html: react,
-            });
+            const handle = await tasks.trigger<typeof sendEmailInvitation>(
+                "send-email-invitation",
+                {
+                    from: `"Workspace member" <${user.email}>`,
+                    email: emailTo,
+                    subject: title,
+                    html: react,
+                },
+            );
+
+            console.log(handle);
 
             return c.json({ data: "Send email successfully" });
         },
@@ -120,28 +135,26 @@ const app = new Hono()
         const user = c.get("user");
         const databases = c.get("databases");
 
-        const members = await databases.listDocuments(
-            DATABASES_ID,
-            MEMBERS_ID,
-            [Query.equal("userId", user.$id)],
-        );
+        const members = await databases.listRows<Member>({
+            databaseId: DATABASES_ID,
+            tableId: MEMBERS_ID,
+            queries: [Query.equal("userId", user.$id)],
+        });
 
         if (members.total === 0) {
-            return c.json({ data: { documents: [], total: 0 } });
+            return c.json({ data: { rows: [], total: 0 } });
         }
 
-        const workspaceIds = members.documents.map(
-            (member) => member.workspaceId,
-        );
+        const workspaceIds = members.rows.map((member) => member.workspaceId);
 
-        const workspaces = await databases.listDocuments<Workspace>(
-            DATABASES_ID,
-            WORKSPACES_ID,
-            [
+        const workspaces = await databases.listRows<Workspace>({
+            databaseId: DATABASES_ID,
+            tableId: WORKSPACES_ID,
+            queries: [
                 Query.orderDesc("$createdAt"),
                 Query.contains("$id", workspaceIds),
             ],
-        );
+        });
 
         return c.json({ data: workspaces });
     })
@@ -157,38 +170,60 @@ const app = new Hono()
         });
 
         if (!member) {
-            return c.json({ error: "Unauthorized" }, 401);
+            throw new HTTPException(401, { message: "Unauthorized" });
         }
 
-        const workspace = await databases.getDocument<Workspace>(
-            DATABASES_ID,
-            WORKSPACES_ID,
-            workspaceId,
-        );
+        const workspace = await databases.getRow<Workspace>({
+            databaseId: DATABASES_ID,
+            tableId: WORKSPACES_ID,
+            rowId: workspaceId,
+        });
 
         return c.json({ data: workspace });
     })
     .get("/:workspaceId/info", sessionMiddleware, async (c) => {
         const databases = c.get("databases");
+        const { users } = await createAdminClient();
+
         const { workspaceId } = c.req.param();
 
-        const workspaceInfo = await databases.getDocument<Workspace>(
-            DATABASES_ID,
-            WORKSPACES_ID,
-            workspaceId,
+        const workspaceInfo = await databases.getRow<Workspace>({
+            databaseId: DATABASES_ID,
+            tableId: WORKSPACES_ID,
+            rowId: workspaceId,
+        });
+
+        const membersInfo = await databases.listRows<Member>({
+            databaseId: DATABASES_ID,
+            tableId: MEMBERS_ID,
+            queries: [Query.equal("workspaceId", workspaceId)],
+        });
+
+        const membersInfoPopulated = await Promise.all(
+            membersInfo.rows.map(async (member) => {
+                const user = await users.get({ userId: member.userId });
+
+                return {
+                    role: member.role,
+                    userId: member.userId,
+                    name: user.name,
+                    email: user.email,
+                };
+            }),
         );
 
         return c.json({
             data: {
                 name: workspaceInfo.name,
                 imageUrl: workspaceInfo.imageUrl,
+                members: membersInfoPopulated,
             },
         });
     })
     .post(
         "/",
         sessionMiddleware,
-        zValidator("form", createWorkspaceSchema),
+        zodValidator("form", createWorkspaceSchema),
         async (c) => {
             const databases = c.get("databases");
             const storage = c.get("storage");
@@ -214,22 +249,21 @@ const app = new Hono()
                 isFreeWorkspaceLimitReached && !currentSubscription;
 
             if (shouldThrowWorkspaceError) {
-                return c.json(
-                    {
-                        error: "You have reached the maximum number of free workspaces",
-                    },
-                    403,
-                );
+                throw new HTTPException(403, {
+                    message:
+                        "You have reached the maximum number of free workspaces",
+                });
             }
 
             let uploadedImageUrl: string | undefined;
+            let uploadedImageId: string | undefined;
 
             if (image instanceof File) {
-                const file = await storage.createFile(
-                    IMAGES_BUCKET_ID,
-                    ID.unique(),
-                    image,
-                );
+                const file = await storage.createFile({
+                    bucketId: IMAGES_BUCKET_ID,
+                    fileId: ID.unique(),
+                    file: image,
+                });
 
                 // const arrayBuffer = await storage.getFileView(
                 //     IMAGES_BUCKET_ID,
@@ -238,24 +272,26 @@ const app = new Hono()
 
                 // uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString("base64")}`;
                 uploadedImageUrl = generateImageUrl(file.$id);
+                uploadedImageId = file.$id;
             }
 
-            const workspace = await databases.createDocument<Workspace>(
-                DATABASES_ID,
-                WORKSPACES_ID,
-                ID.unique(),
-                {
+            const workspace = await databases.createRow<Workspace>({
+                databaseId: DATABASES_ID,
+                tableId: WORKSPACES_ID,
+                rowId: ID.unique(),
+                data: {
                     name,
                     userId: user.$id,
                     imageUrl: uploadedImageUrl,
+                    imageId: uploadedImageId,
                     inviteCode: generateInviteCode(6),
                 },
-            );
+            });
 
-            await messaging.createTopic(
-                `workspace_${workspace.$id}`,
-                workspace.name,
-            );
+            await messaging.createTopic({
+                topicId: `workspace_${workspace.$id}`,
+                name: workspace.name,
+            });
 
             const targetId = await ensureEmailTarget({
                 databases,
@@ -263,30 +299,34 @@ const app = new Hono()
             });
 
             if (!targetId) {
-                return c.json({ error: "Failed to get target ID" }, 400);
+                throw new HTTPException(400, {
+                    message: "Failed to get target ID",
+                });
             }
 
-            const subscriber = await messaging.createSubscriber(
-                `workspace_${workspace.$id}`,
-                ID.unique(),
+            const subscriber = await messaging.createSubscriber({
+                topicId: `workspace_${workspace.$id}`,
+                subscriberId: ID.unique(),
                 targetId,
-            );
+            });
 
             if (!subscriber) {
-                return c.json({ error: "Failed to create subscriber" }, 400);
+                throw new HTTPException(400, {
+                    message: "Failed to create subscriber",
+                });
             }
 
-            await databases.createDocument(
-                DATABASES_ID,
-                MEMBERS_ID,
-                ID.unique(),
-                {
+            await databases.createRow({
+                databaseId: DATABASES_ID,
+                tableId: MEMBERS_ID,
+                rowId: ID.unique(),
+                data: {
                     userId: user.$id,
                     workspaceId: workspace.$id,
                     role: MemberRole.ADMIN,
                     subscriberId: subscriber.$id,
                 },
-            );
+            });
 
             return c.json({ data: workspace });
         },
@@ -294,7 +334,7 @@ const app = new Hono()
     .patch(
         "/:workspaceId",
         sessionMiddleware,
-        zValidator("form", updateWorkspaceSchema),
+        zodValidator("form", updateWorkspaceSchema),
         async (c) => {
             const databases = c.get("databases");
             const storage = c.get("storage");
@@ -310,17 +350,18 @@ const app = new Hono()
             });
 
             if (!member || member.role !== MemberRole.ADMIN) {
-                return c.json({ error: "Unauthorized" }, 401);
+                throw new HTTPException(401, { message: "Unauthorized" });
             }
 
             let uploadedImageUrl: string | undefined;
+            let uploadedImageId: string | undefined;
 
             if (image instanceof File) {
-                const file = await storage.createFile(
-                    IMAGES_BUCKET_ID,
-                    ID.unique(),
-                    image,
-                );
+                const file = await storage.createFile({
+                    bucketId: IMAGES_BUCKET_ID,
+                    fileId: ID.unique(),
+                    file: image,
+                });
 
                 // const arrayBuffer = await storage.getFileView(
                 //     IMAGES_BUCKET_ID,
@@ -329,25 +370,28 @@ const app = new Hono()
 
                 // uploadedImageUrl = `data:image/png;base64,${Buffer.from(arrayBuffer).toString("base64")}`;
                 uploadedImageUrl = generateImageUrl(file.$id);
+                uploadedImageId = file.$id;
             } else {
                 uploadedImageUrl = image;
             }
 
-            const workspace = await databases.updateDocument(
-                DATABASES_ID,
-                WORKSPACES_ID,
-                workspaceId,
-                {
+            const workspace = await databases.updateRow<Workspace>({
+                databaseId: DATABASES_ID,
+                tableId: WORKSPACES_ID,
+                rowId: workspaceId,
+                data: {
                     name,
                     imageUrl: uploadedImageUrl,
+                    imageId: uploadedImageId,
                 },
-            );
+            });
 
             return c.json({ data: workspace });
         },
     )
     .delete("/:workspaceId", sessionMiddleware, async (c) => {
         const databases = c.get("databases");
+        const storage = c.get("storage");
         const user = c.get("user");
         const { messaging, users } = await createAdminClient();
 
@@ -360,35 +404,34 @@ const app = new Hono()
         });
 
         if (!member || member.role !== MemberRole.ADMIN) {
-            return c.json({ error: "Unauthorized" }, 401);
+            throw new HTTPException(401, { message: "Unauthorized" });
         }
 
-        const workspaceToDelete = await databases.getDocument<Workspace>(
-            DATABASES_ID,
-            WORKSPACES_ID,
-            workspaceId,
-        );
+        const workspaceToDelete = await databases.getRow<Workspace>({
+            databaseId: DATABASES_ID,
+            tableId: WORKSPACES_ID,
+            rowId: workspaceId,
+        });
 
-        // DELETE members, projects , topic and tasks
-        const membersToDelete = await databases.listDocuments<Member>(
-            DATABASES_ID,
-            MEMBERS_ID,
-            [Query.equal("workspaceId", workspaceId)],
-        );
-        const projectsToDelete = await databases.listDocuments(
-            DATABASES_ID,
-            PROJECTS_ID,
-            [Query.equal("workspaceId", workspaceId)],
-        );
-        const tasksToDelete = await databases.listDocuments(
-            DATABASES_ID,
-            TASKS_ID,
-            [Query.equal("workspaceId", workspaceId)],
-        );
+        // TODO: use trigger.dev DELETE members, projects , topic and tasks and file in storage
+        const tx = await databases.createTransaction();
+        const membersToDelete = await databases.listRows<Member>({
+            databaseId: DATABASES_ID,
+            tableId: MEMBERS_ID,
+            queries: [Query.equal("workspaceId", workspaceId)],
+            transactionId: tx.$id,
+        });
+
+        const projectsToDelete = await databases.listRows<Project>({
+            databaseId: DATABASES_ID,
+            tableId: PROJECTS_ID,
+            queries: [Query.equal("workspaceId", workspaceId)],
+            transactionId: tx.$id,
+        });
 
         const populatedMembersToDelete = await Promise.all(
-            membersToDelete.documents.map(async (member) => {
-                const user = await users.get(member.userId);
+            membersToDelete.rows.map(async (member) => {
+                const user = await users.get({ userId: member.userId });
 
                 return {
                     ...member,
@@ -407,56 +450,70 @@ const app = new Hono()
 
         if (populatedMembersToDelete.length > 0) {
             await Promise.all(
-                populatedMembersToDelete.map(async (member) => {
-                    Promise.all([
-                        await databases.deleteDocument(
-                            DATABASES_ID,
-                            MEMBERS_ID,
-                            member.$id,
-                        ),
-                        // co the ko can gui cho chinh minh tuc nguoi da tao ra workspace do
-                        await enqueueSendEmailDeleteWorkspace({
+                populatedMembersToDelete.map((member) => {
+                    // co the ko can gui cho chinh minh tuc nguoi da tao ra workspace do
+                    tasks.trigger<typeof sendEmailDeleteWorkspace>(
+                        "send-email-delete-workspace",
+                        {
                             from: `"Workspace admin" <${user.email}>`,
                             email: member.email,
                             subject: `Workspace "${workspaceToDelete.name}" deleted`,
                             html: react,
-                        }),
-                    ]);
-                }),
-            );
-        }
-
-        if (projectsToDelete.total > 0) {
-            await Promise.all(
-                projectsToDelete.documents.map((project) =>
-                    databases.deleteDocument(
-                        DATABASES_ID,
-                        PROJECTS_ID,
-                        project.$id,
-                    ),
-                ),
-            );
-        }
-
-        if (tasksToDelete.total > 0) {
-            await Promise.all(
-                tasksToDelete.documents.map(async (task) => {
-                    await databases.deleteDocument(
-                        DATABASES_ID,
-                        TASKS_ID,
-                        task.$id,
+                        },
                     );
                 }),
             );
         }
 
-        await messaging.deleteTopic(`workspace_${workspaceId}`);
+        await databases.deleteRows({
+            databaseId: DATABASES_ID,
+            tableId: MEMBERS_ID,
+            queries: [Query.equal("workspaceId", workspaceId)],
+            transactionId: tx.$id,
+        });
 
-        await databases.deleteDocument(
-            DATABASES_ID,
-            WORKSPACES_ID,
-            workspaceId,
+        // DELETE file storage in projects
+        await Promise.all(
+            projectsToDelete.rows.map(async (project) => {
+                if (project.imageId) {
+                    await storage.deleteFile({
+                        bucketId: IMAGES_BUCKET_ID,
+                        fileId: project.imageId,
+                    });
+                }
+            }),
         );
+
+        await databases.deleteRows({
+            databaseId: DATABASES_ID,
+            tableId: PROJECTS_ID,
+            queries: [Query.equal("workspaceId", workspaceId)],
+            transactionId: tx.$id,
+        });
+
+        await databases.deleteRows({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            queries: [Query.equal("workspaceId", workspaceId)],
+            transactionId: tx.$id,
+        });
+
+        await messaging.deleteTopic({ topicId: `workspace_${workspaceId}` });
+
+        // DELETE file storage in workspace
+        if (workspaceToDelete.imageId) {
+            await storage.deleteFile({
+                bucketId: IMAGES_BUCKET_ID,
+                fileId: workspaceToDelete.imageId,
+            });
+        }
+
+        await databases.deleteRow({
+            databaseId: DATABASES_ID,
+            tableId: WORKSPACES_ID,
+            rowId: workspaceId,
+            transactionId: tx.$id,
+        });
 
         // publish message
         const channel = ably.channels.get(
@@ -484,24 +541,24 @@ const app = new Hono()
         });
 
         if (!member || member.role !== MemberRole.ADMIN) {
-            return c.json({ error: "Unauthorized" }, 401);
+            throw new HTTPException(401, { message: "Unauthorized" });
         }
 
-        const workspace = await databases.updateDocument(
-            DATABASES_ID,
-            WORKSPACES_ID,
-            workspaceId,
-            {
+        const workspace = await databases.updateRow<Workspace>({
+            databaseId: DATABASES_ID,
+            tableId: WORKSPACES_ID,
+            rowId: workspaceId,
+            data: {
                 inviteCode: generateInviteCode(6),
             },
-        );
+        });
 
         return c.json({ data: workspace });
     })
     .post(
         "/:workspaceId/join",
         sessionMiddleware,
-        zValidator(
+        zodValidator(
             "json",
             z.object({
                 code: z.string(),
@@ -522,17 +579,19 @@ const app = new Hono()
             });
 
             if (member) {
-                return c.json({ error: "Already a member" }, 400);
+                throw new HTTPException(409, { message: "Already a member" });
             }
 
-            const workspace = await databases.getDocument<Workspace>(
-                DATABASES_ID,
-                WORKSPACES_ID,
-                workspaceId,
-            );
+            const workspace = await databases.getRow<Workspace>({
+                databaseId: DATABASES_ID,
+                tableId: WORKSPACES_ID,
+                rowId: workspaceId,
+            });
 
             if (workspace.inviteCode !== code) {
-                return c.json({ error: "Invalid invite code " }, 400);
+                throw new HTTPException(400, {
+                    message: "Invalid invite code",
+                });
             }
 
             const targetId = await ensureEmailTarget({
@@ -541,30 +600,34 @@ const app = new Hono()
             });
 
             if (!targetId) {
-                return c.json({ error: "Failed to get target ID" }, 400);
+                throw new HTTPException(400, {
+                    message: "Failed to get target ID",
+                });
             }
 
-            const subscriber = await messaging.createSubscriber(
-                `workspace_${workspaceId}`,
-                ID.unique(),
+            const subscriber = await messaging.createSubscriber({
+                topicId: `workspace_${workspaceId}`,
+                subscriberId: ID.unique(),
                 targetId,
-            );
+            });
 
             if (!subscriber) {
-                return c.json({ error: "Failed to create subscriber" }, 400);
+                throw new HTTPException(400, {
+                    message: "Failed to create subscriber",
+                });
             }
 
-            await databases.createDocument(
-                DATABASES_ID,
-                MEMBERS_ID,
-                ID.unique(),
-                {
+            await databases.createRow({
+                databaseId: DATABASES_ID,
+                tableId: MEMBERS_ID,
+                rowId: ID.unique(),
+                data: {
                     workspaceId,
                     userId: user.$id,
                     role: MemberRole.MEMBER,
                     subscriberId: subscriber.$id,
                 },
-            );
+            });
 
             // publish message
             const channel = ably.channels.get(
@@ -593,7 +656,7 @@ const app = new Hono()
         });
 
         if (!member) {
-            return c.json({ error: "Unauthorized" }, 401);
+            throw new HTTPException(401, { message: "Unauthorized" });
         }
 
         const now = new Date();
@@ -602,39 +665,10 @@ const app = new Hono()
         const lastMonthStart = startOfMonth(subMonths(now, 1));
         const lastMonthEnd = endOfMonth(subMonths(now, 1));
 
-        // const thisMonthProjects = await databases.listDocuments(
-        //     DATABASES_ID,
-        //     PROJECTS_ID,
-        //     [
-        //         Query.equal("workspaceId", workspaceId),
-        //         Query.greaterThanEqual(
-        //             "$createdAt",
-        //             thisMonthStart.toISOString(),
-        //         ),
-        //         Query.lessThanEqual("$createdAt", thisMonthEnd.toISOString()),
-        //     ],
-        // );
-
-        // const lastMonthProjects = await databases.listDocuments(
-        //     DATABASES_ID,
-        //     PROJECTS_ID,
-        //     [
-        //         Query.equal("workspaceId", workspaceId),
-        //         Query.greaterThanEqual(
-        //             "$createdAt",
-        //             lastMonthStart.toISOString(),
-        //         ),
-        //         Query.lessThanEqual("$createdAt", lastMonthEnd.toISOString()),
-        //     ],
-        // );
-
-        // const projectCount = thisMonthProjects.total;
-        // const projectDifference = projectCount - lastMonthProjects.total;
-
-        const thisMonthTasks = await databases.listDocuments(
-            DATABASES_ID,
-            TASKS_ID,
-            [
+        const thisMonthTasks = await databases.listRows<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            queries: [
                 Query.equal("workspaceId", workspaceId),
                 Query.greaterThanEqual(
                     "$createdAt",
@@ -642,12 +676,12 @@ const app = new Hono()
                 ),
                 Query.lessThanEqual("$createdAt", thisMonthEnd.toISOString()),
             ],
-        );
+        });
 
-        const lastMonthTasks = await databases.listDocuments(
-            DATABASES_ID,
-            TASKS_ID,
-            [
+        const lastMonthTasks = await databases.listRows<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            queries: [
                 Query.equal("workspaceId", workspaceId),
                 Query.greaterThanEqual(
                     "$createdAt",
@@ -655,15 +689,15 @@ const app = new Hono()
                 ),
                 Query.lessThanEqual("$createdAt", lastMonthEnd.toISOString()),
             ],
-        );
+        });
 
         const taskCount = thisMonthTasks.total;
         const taskDifference = taskCount - lastMonthTasks.total;
 
-        const thisMonthAssignedTasks = await databases.listDocuments(
-            DATABASES_ID,
-            TASKS_ID,
-            [
+        const thisMonthAssignedTasks = await databases.listRows<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            queries: [
                 Query.equal("workspaceId", workspaceId),
                 Query.equal("assigneeId", member.$id),
                 Query.greaterThanEqual(
@@ -672,12 +706,12 @@ const app = new Hono()
                 ),
                 Query.lessThanEqual("$createdAt", thisMonthEnd.toISOString()),
             ],
-        );
+        });
 
-        const lastMonthAssignedTasks = await databases.listDocuments(
-            DATABASES_ID,
-            TASKS_ID,
-            [
+        const lastMonthAssignedTasks = await databases.listRows<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            queries: [
                 Query.equal("workspaceId", workspaceId),
                 Query.equal("assigneeId", member.$id),
                 Query.greaterThanEqual(
@@ -686,16 +720,16 @@ const app = new Hono()
                 ),
                 Query.lessThanEqual("$createdAt", lastMonthEnd.toISOString()),
             ],
-        );
+        });
 
         const assignedTaskCount = thisMonthAssignedTasks.total;
         const assignedTaskDifference =
             assignedTaskCount - lastMonthAssignedTasks.total;
 
-        const thisMonthIncompleteTasks = await databases.listDocuments(
-            DATABASES_ID,
-            TASKS_ID,
-            [
+        const thisMonthIncompleteTasks = await databases.listRows<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            queries: [
                 Query.equal("workspaceId", workspaceId),
                 Query.notEqual("status", TaskStatus.DONE),
                 Query.greaterThanEqual(
@@ -704,12 +738,12 @@ const app = new Hono()
                 ),
                 Query.lessThanEqual("$createdAt", thisMonthEnd.toISOString()),
             ],
-        );
+        });
 
-        const lastMonthIncompleteTasks = await databases.listDocuments(
-            DATABASES_ID,
-            TASKS_ID,
-            [
+        const lastMonthIncompleteTasks = await databases.listRows<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            queries: [
                 Query.equal("workspaceId", workspaceId),
                 Query.notEqual("status", TaskStatus.DONE),
                 Query.greaterThanEqual(
@@ -718,16 +752,16 @@ const app = new Hono()
                 ),
                 Query.lessThanEqual("$createdAt", lastMonthEnd.toISOString()),
             ],
-        );
+        });
 
         const incompleteTaskCount = thisMonthIncompleteTasks.total;
         const incompleteTaskDifference =
             incompleteTaskCount - lastMonthIncompleteTasks.total;
 
-        const thisMonthCompletedTasks = await databases.listDocuments(
-            DATABASES_ID,
-            TASKS_ID,
-            [
+        const thisMonthCompletedTasks = await databases.listRows<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            queries: [
                 Query.equal("workspaceId", workspaceId),
                 Query.equal("status", TaskStatus.DONE),
                 Query.greaterThanEqual(
@@ -736,12 +770,12 @@ const app = new Hono()
                 ),
                 Query.lessThanEqual("$createdAt", thisMonthEnd.toISOString()),
             ],
-        );
+        });
 
-        const lastMonthCompletedTasks = await databases.listDocuments(
-            DATABASES_ID,
-            TASKS_ID,
-            [
+        const lastMonthCompletedTasks = await databases.listRows<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            queries: [
                 Query.equal("workspaceId", workspaceId),
                 Query.equal("status", TaskStatus.DONE),
                 Query.greaterThanEqual(
@@ -750,16 +784,16 @@ const app = new Hono()
                 ),
                 Query.lessThanEqual("$createdAt", lastMonthEnd.toISOString()),
             ],
-        );
+        });
 
         const completedTaskCount = thisMonthCompletedTasks.total;
         const completedTaskDifference =
             completedTaskCount - lastMonthCompletedTasks.total;
 
-        const thisMonthOverdueTasks = await databases.listDocuments(
-            DATABASES_ID,
-            TASKS_ID,
-            [
+        const thisMonthOverdueTasks = await databases.listRows<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            queries: [
                 Query.equal("workspaceId", workspaceId),
                 Query.notEqual("status", TaskStatus.DONE),
                 Query.lessThan("dueDate", now.toISOString()),
@@ -769,12 +803,12 @@ const app = new Hono()
                 ),
                 Query.lessThanEqual("$createdAt", thisMonthEnd.toISOString()),
             ],
-        );
+        });
 
-        const lastMonthOverdueTasks = await databases.listDocuments(
-            DATABASES_ID,
-            TASKS_ID,
-            [
+        const lastMonthOverdueTasks = await databases.listRows<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            queries: [
                 Query.equal("workspaceId", workspaceId),
                 Query.notEqual("status", TaskStatus.DONE),
                 Query.lessThan("dueDate", now.toISOString()),
@@ -784,7 +818,7 @@ const app = new Hono()
                 ),
                 Query.lessThanEqual("$createdAt", lastMonthEnd.toISOString()),
             ],
-        );
+        });
 
         const overdueTaskCount = thisMonthOverdueTasks.total;
         const overdueTaskDifference =

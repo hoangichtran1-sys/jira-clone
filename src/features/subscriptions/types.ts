@@ -1,6 +1,6 @@
 import { Models } from "node-appwrite";
 
-export type Subscription = Models.Document & {
+export type Subscription = Models.Row & {
     userId: string;
     subscriptionId: string;
     status: string;

@@ -19,7 +19,7 @@ export const useGetTotalProjectInWorkspace = ({
             });
 
             if (!response.ok) {
-                throw new Error("Failed to fetch total project");
+                return null;
             }
 
             const { data } = await response.json();

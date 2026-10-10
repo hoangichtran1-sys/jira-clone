@@ -1,9 +1,9 @@
 import { DATABASES_ID, MEMBERS_ID } from "@/config/appwrite";
-import { Query, type Databases } from "node-appwrite";
+import { Query, type TablesDB } from "node-appwrite";
 import { Member } from "./types";
 
 interface GetMemberProps {
-    databases: Databases;
+    databases: TablesDB;
     workspaceId: string;
     userId: string;
 }
@@ -11,16 +11,20 @@ interface GetMemberProps {
 export const getMember = async ({
     databases,
     workspaceId,
-    userId
+    userId,
 }: GetMemberProps) => {
-    const members = await databases.listDocuments<Member>(
-        DATABASES_ID,
-        MEMBERS_ID,
-        [
+    const members = await databases.listRows<Member>({
+        databaseId: DATABASES_ID,
+        tableId: MEMBERS_ID,
+        queries: [
             Query.equal("workspaceId", workspaceId),
             Query.equal("userId", userId),
-        ]
-    )
+        ],
+    });
 
-    return members.documents[0];
-}
+    if (members.total === 0) {
+        return null;
+    }
+
+    return members.rows[0];
+};

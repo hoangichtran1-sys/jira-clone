@@ -25,7 +25,12 @@ import { DottedSeparator } from "@/components/dotted-separator";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Textarea } from "@/components/ui/textarea";
+import {
+    InputGroup,
+    InputGroupTextarea,
+    InputGroupAddon,
+    InputGroupText,
+} from "@/components/ui/input-group";
 import { DatePicker } from "@/components/date-picker";
 import { MemberAvatar } from "@/features/members/components/member-avatar";
 import { Task, TaskStatus } from "../types";
@@ -34,8 +39,8 @@ import { useUpdateTask } from "../api/use-update-task";
 
 interface EditTaskFormProps {
     onCancel?: () => void;
-    projectOptions: { id: string; name: string; imageUrl: string }[];
-    memberOptions: { id: string; name: string }[];
+    projectOptions: { id: string; name: string; imageUrl?: string }[];
+    memberOptions: { id: string; name: string; userId: string }[];
     initialValues: Task;
 }
 
@@ -68,6 +73,8 @@ export const EditTaskForm = ({
             },
         );
     };
+
+    const description = (form.watch("description") || "").trim();
 
     return (
         <Card className="w-full h-full border-none shadow-none">
@@ -137,6 +144,9 @@ export const EditTaskForm = ({
                                                                 className="size-6"
                                                                 name={
                                                                     member.name
+                                                                }
+                                                                avatarUserId={
+                                                                    member.userId
                                                                 }
                                                             />
                                                             {member.name}
@@ -260,12 +270,23 @@ export const EditTaskForm = ({
                                                 Task description(optional)
                                             </FormLabel>
                                             <FormControl>
-                                                <Textarea
-                                                    {...field}
-                                                    rows={3}
-                                                    value={field.value || ""}
-                                                    placeholder="Enter task description"
-                                                />
+                                                <InputGroup>
+                                                    <InputGroupTextarea
+                                                        {...field}
+                                                        rows={3}
+                                                        value={
+                                                            field.value || ""
+                                                        }
+                                                        placeholder="Enter task description"
+                                                    />
+                                                    <InputGroupAddon align="block-end">
+                                                        <InputGroupText className="text-xs text-muted-foreground">
+                                                            {500 -
+                                                                description.length}{" "}
+                                                            characters left
+                                                        </InputGroupText>
+                                                    </InputGroupAddon>
+                                                </InputGroup>
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuth } from "@appwrite.io/react";
+import { OAuthProvider } from "appwrite";
 import { DottedSeparator } from "@/components/dotted-separator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +12,11 @@ import {
     FormItem,
     FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import {
+    InputGroup,
+    InputGroupInput,
+    InputGroupAddon,
+} from "@/components/ui/input-group";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import { useForm } from "react-hook-form";
@@ -18,10 +24,19 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { loginSchema } from "../schemas";
-import { useLogin } from "../api/use-login";
-import { signUpWithGithub, signUpWithGoogle } from "@/lib/oauth";
+import { useRouter, useSearchParams } from "next/navigation";
+import { safeRedirect } from "@/lib/utils";
+import { toast } from "sonner";
+import { LockIcon, MailIcon } from "lucide-react";
 
 export const SignInCard = () => {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    const redirect = safeRedirect(searchParams.get("redirect"));
+
+    const { signIn } = useAuth();
+
     const form = useForm<z.infer<typeof loginSchema>>({
         resolver: zodResolver(loginSchema),
         defaultValues: {
@@ -30,10 +45,31 @@ export const SignInCard = () => {
         },
     });
 
-    const login = useLogin();
-
     const handleSubmit = (values: z.infer<typeof loginSchema>) => {
-        login.mutate({ json: values });
+        signIn.emailPassword({
+            email: values.email,
+            password: values.password,
+            onError(error) {
+                console.log(error);
+                toast.error(error.message);
+            },
+            onSuccess() {
+                toast.success("Login successfully");
+                router.push(redirect);
+            },
+        });
+    };
+
+    const handleSocial = (provider: keyof typeof OAuthProvider) => {
+        signIn.oAuth({
+            provider: provider.toLowerCase(),
+            successUrl: `${process.env.NEXT_PUBLIC_APP_URL}${redirect}`,
+            failureUrl: `${process.env.NEXT_PUBLIC_APP_URL}/sign-in`,
+            onError(error) {
+                console.log(error);
+                toast.error(error.message);
+            },
+        });
     };
 
     return (
@@ -56,11 +92,16 @@ export const SignInCard = () => {
                             render={({ field }) => (
                                 <FormItem>
                                     <FormControl>
-                                        <Input
-                                            {...field}
-                                            type="email"
-                                            placeholder="Enter email address"
-                                        />
+                                        <InputGroup>
+                                            <InputGroupInput
+                                                {...field}
+                                                type="email"
+                                                placeholder="Enter email address"
+                                            />
+                                            <InputGroupAddon>
+                                                <MailIcon />
+                                            </InputGroupAddon>
+                                        </InputGroup>
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -72,18 +113,30 @@ export const SignInCard = () => {
                             render={({ field }) => (
                                 <FormItem>
                                     <FormControl>
-                                        <Input
-                                            {...field}
-                                            type="password"
-                                            placeholder="Enter password"
-                                        />
+                                        <InputGroup>
+                                            <InputGroupAddon>
+                                                <InputGroupInput
+                                                    {...field}
+                                                    type="password"
+                                                    placeholder="Enter password"
+                                                />
+                                                <LockIcon />
+                                            </InputGroupAddon>
+                                        </InputGroup>
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
+                        <Link
+                            tabIndex={-1}
+                            href="/forgot-password"
+                            className="ml-auto text-sm text-blue-500 dark:text-blue-400 underline-offset-4 hover:underline"
+                        >
+                            Forgot your password?
+                        </Link>
                         <Button
-                            disabled={login.isPending}
+                            disabled={signIn.isPending}
                             size="lg"
                             className="w-full"
                         >
@@ -100,8 +153,8 @@ export const SignInCard = () => {
                     variant="secondary"
                     size="lg"
                     className="w-full"
-                    disabled={login.isPending}
-                    onClick={() => signUpWithGoogle()}
+                    disabled={signIn.isPending}
+                    onClick={() => handleSocial("Google")}
                 >
                     <FcGoogle className="mr-2 size-5" />
                     Login with Google
@@ -110,8 +163,8 @@ export const SignInCard = () => {
                     variant="secondary"
                     size="lg"
                     className="w-full"
-                    disabled={login.isPending}
-                    onClick={() => signUpWithGithub()}
+                    disabled={signIn.isPending}
+                    onClick={() => handleSocial("Github")}
                 >
                     <FaGithub className="mr-2 size-5" />
                     Login with Github

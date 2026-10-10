@@ -5,6 +5,9 @@ import { Loader2Icon } from "lucide-react";
 import { NotificationWorkspaceForm } from "./notification-workspace-form";
 import { useAtomValue } from "jotai";
 import { userIdAtom } from "@/features/auth/atoms/user-id-atom";
+import { ErrorResponse } from "@/types";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 interface NotificationWorkspaceFormWrapperProps {
     onCancel: () => void;
@@ -15,7 +18,12 @@ export const NotificationWorkspaceFormWrapper = ({
 }: NotificationWorkspaceFormWrapperProps) => {
     const workspaceId = useWorkspaceId();
 
-    const { data: members, isLoading: isLoadingMembers } = useGetMembers({
+    const {
+        data: members,
+        isLoading: isLoadingMembers,
+        isError,
+        error,
+    } = useGetMembers({
         workspaceId,
     });
 
@@ -31,6 +39,13 @@ export const NotificationWorkspaceFormWrapper = ({
     );
 
     const isLoading = isLoadingMembers || currentUserId === null;
+
+    useEffect(() => {
+        if (isError) {
+            const err = (error as unknown as ErrorResponse).error;
+            toast.error(err);
+        }
+    }, [isError, error]);
 
     if (isLoading) {
         return (

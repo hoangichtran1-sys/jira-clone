@@ -1,4 +1,5 @@
 import { client } from "@/lib/rpc";
+import { ErrorResponse } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 
 interface UseGetWorkspaceProps {
@@ -14,7 +15,9 @@ export const useGetWorkspace = ({ workspaceId }: UseGetWorkspaceProps) => {
             });
 
             if (!response.ok) {
-                throw new Error("Failed to fetch workspace");
+                const errorResponse =
+                    (await response.json()) as unknown as ErrorResponse;
+                throw errorResponse;
             }
 
             const { data } = await response.json();

@@ -1,5 +1,5 @@
 import { sessionMiddleware } from "@/lib/session-middleware";
-import { zValidator } from "@hono/zod-validator";
+import { HTTPException } from "hono/http-exception";
 import { Hono } from "hono";
 import { createTaskSchema, updateTaskSchema } from "../schemas";
 import { getMember } from "@/features/members/utils";
@@ -16,6 +16,7 @@ import { createAdminClient } from "@/lib/appwrite";
 import { Project } from "@/features/projects/types";
 import { Member } from "@/features/members/types";
 import { ably } from "@/lib/ably-rest";
+import { zodValidator } from "@/lib/zod-validator";
 
 const app = new Hono()
     .delete("/:taskId", sessionMiddleware, async (c) => {
@@ -23,11 +24,11 @@ const app = new Hono()
         const databases = c.get("databases");
         const { taskId } = c.req.param();
 
-        const taskToDelete = await databases.getDocument<Task>(
-            DATABASES_ID,
-            TASKS_ID,
-            taskId,
-        );
+        const taskToDelete = await databases.getRow<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            rowId: taskId,
+        });
 
         const member = await getMember({
             databases,
@@ -36,10 +37,14 @@ const app = new Hono()
         });
 
         if (!member) {
-            return c.json({ error: "Unauthorized " }, 401);
+            throw new HTTPException(401, { message: "Unauthorized" });
         }
 
-        await databases.deleteDocument(DATABASES_ID, TASKS_ID, taskId);
+        await databases.deleteRow({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            rowId: taskId,
+        });
 
         // publish message
         const channel = ably.channels.get(
@@ -60,7 +65,7 @@ const app = new Hono()
     .get(
         "/",
         sessionMiddleware,
-        zValidator(
+        zodValidator(
             "query",
             z.object({
                 workspaceId: z.string(),
@@ -91,80 +96,82 @@ const app = new Hono()
             });
 
             if (!member) {
-                return c.json({ error: "Unauthorized " }, 401);
+                throw new HTTPException(401, { message: "Unauthorized" });
             }
 
-            const query = [
+            const queries = [
                 Query.equal("workspaceId", workspaceId),
                 Query.orderDesc("$createdAt"),
             ];
 
             if (projectId) {
                 console.log("projectId", projectId);
-                query.push(Query.equal("projectId", projectId));
+                queries.push(Query.equal("projectId", projectId));
             }
 
             if (status) {
                 console.log("status", status);
-                query.push(Query.equal("status", status));
+                queries.push(Query.equal("status", status));
             }
 
             if (assigneeId) {
                 console.log("assigneeId", assigneeId);
-                query.push(Query.equal("assigneeId", assigneeId));
+                queries.push(Query.equal("assigneeId", assigneeId));
             }
 
             if (dueDate) {
                 console.log("dueDate", dueDate);
-                query.push(Query.equal("dueDate", dueDate));
+                queries.push(Query.equal("dueDate", dueDate));
             }
 
             if (search) {
                 console.log("search", search);
-                query.push(Query.equal("name", search));
+                queries.push(Query.equal("name", search));
             }
 
-            const tasks = await databases.listDocuments<Task>(
-                DATABASES_ID,
-                TASKS_ID,
-                query,
-            );
+            const tasks = await databases.listRows<Task>({
+                databaseId: DATABASES_ID,
+                tableId: TASKS_ID,
+                queries,
+            });
 
-            const projectIds = tasks.documents.map((task) => task.projectId);
-            const assigneeIds = tasks.documents.map((task) => task.assigneeId);
+            const projectIds = tasks.rows.map((task) => task.projectId);
+            const assigneeIds = tasks.rows.map((task) => task.assigneeId);
 
-            const projects = await databases.listDocuments<Project>(
-                DATABASES_ID,
-                PROJECTS_ID,
-                projectIds.length > 0
-                    ? [Query.contains("$id", projectIds)]
-                    : [],
-            );
+            const projects = await databases.listRows<Project>({
+                databaseId: DATABASES_ID,
+                tableId: PROJECTS_ID,
+                queries:
+                    projectIds.length > 0
+                        ? [Query.contains("$id", projectIds)]
+                        : [],
+            });
 
-            const members = await databases.listDocuments<Member>(
-                DATABASES_ID,
-                MEMBERS_ID,
-                assigneeIds.length > 0
-                    ? [Query.contains("$id", assigneeIds)]
-                    : [],
-            );
+            const members = await databases.listRows<Member>({
+                databaseId: DATABASES_ID,
+                tableId: MEMBERS_ID,
+                queries:
+                    assigneeIds.length > 0
+                        ? [Query.contains("$id", assigneeIds)]
+                        : [],
+            });
 
             const assignees = await Promise.all(
-                members.documents.map(async (member) => {
-                    const user = await users.get(member.userId);
+                members.rows.map(async (member) => {
+                    const user = await users.get({ userId: member.userId });
 
                     return {
                         ...member,
-                        name: user.name || user.email,
+                        name: user.name,
                         email: user.email,
                     };
                 }),
             );
 
-            const populatedTasks = tasks.documents.map((task) => {
-                const project = projects.documents.find(
+            const populatedTasks = tasks.rows.map((task) => {
+                const project = projects.rows.find(
                     (project) => project.$id === task.projectId,
-                );
+                )!;
                 const assignee = assignees.find(
                     (assignee) => assignee.$id === task.assigneeId,
                 );
@@ -187,7 +194,7 @@ const app = new Hono()
     .post(
         "/",
         sessionMiddleware,
-        zValidator("json", createTaskSchema),
+        zodValidator("json", createTaskSchema),
         async (c) => {
             const user = c.get("user");
             const databases = c.get("databases");
@@ -208,40 +215,40 @@ const app = new Hono()
             });
 
             if (!member) {
-                return c.json({ error: "Unauthorized " }, 401);
+                throw new HTTPException(401, { message: "Unauthorized" });
             }
 
-            const highestPositionTask = await databases.listDocuments(
-                DATABASES_ID,
-                TASKS_ID,
-                [
+            const highestPositionTask = await databases.listRows({
+                databaseId: DATABASES_ID,
+                tableId: TASKS_ID,
+                queries: [
                     Query.equal("status", status),
                     Query.equal("workspaceId", workspaceId),
                     Query.orderAsc("position"),
                     Query.limit(1),
                 ],
-            );
+            });
 
             const newPosition =
-                highestPositionTask.documents.length > 0
-                    ? highestPositionTask.documents[0].position + 1000
+                highestPositionTask.rows.length > 0
+                    ? highestPositionTask.rows[0].position + 1000
                     : 1000;
 
-            const task = await databases.createDocument<Task>(
-                DATABASES_ID,
-                TASKS_ID,
-                ID.unique(),
-                {
+            const task = await databases.createRow<Task>({
+                databaseId: DATABASES_ID,
+                tableId: TASKS_ID,
+                rowId: ID.unique(),
+                data: {
                     name,
                     status,
                     workspaceId,
                     projectId,
-                    dueDate,
+                    dueDate: dueDate.toISOString(),
                     description: description || "",
                     assigneeId,
                     position: newPosition,
                 },
-            );
+            });
 
             // publish message
             const channel = ably.channels.get(
@@ -262,7 +269,7 @@ const app = new Hono()
     .patch(
         "/:taskId",
         sessionMiddleware,
-        zValidator("json", updateTaskSchema),
+        zodValidator("json", updateTaskSchema),
         async (c) => {
             const user = c.get("user");
             const databases = c.get("databases");
@@ -276,11 +283,11 @@ const app = new Hono()
                 description,
             } = c.req.valid("json");
 
-            const existingTask = await databases.getDocument<Task>(
-                DATABASES_ID,
-                TASKS_ID,
-                taskId,
-            );
+            const existingTask = await databases.getRow<Task>({
+                databaseId: DATABASES_ID,
+                tableId: TASKS_ID,
+                rowId: taskId,
+            });
 
             const member = await getMember({
                 databases,
@@ -289,22 +296,22 @@ const app = new Hono()
             });
 
             if (!member) {
-                return c.json({ error: "Unauthorized " }, 401);
+                throw new HTTPException(401, { message: "Unauthorized" });
             }
 
-            const task = await databases.updateDocument<Task>(
-                DATABASES_ID,
-                TASKS_ID,
-                taskId,
-                {
+            const task = await databases.updateRow<Task>({
+                databaseId: DATABASES_ID,
+                tableId: TASKS_ID,
+                rowId: taskId,
+                data: {
                     name,
                     status,
                     projectId,
-                    dueDate,
+                    dueDate: dueDate?.toISOString(),
                     description: description || "",
                     assigneeId,
                 },
-            );
+            });
 
             return c.json({ data: task });
         },
@@ -315,11 +322,11 @@ const app = new Hono()
         const { users } = await createAdminClient();
         const { taskId } = c.req.param();
 
-        const task = await databases.getDocument<Task>(
-            DATABASES_ID,
-            TASKS_ID,
-            taskId,
-        );
+        const task = await databases.getRow<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            rowId: taskId,
+        });
 
         const currentMember = await getMember({
             databases,
@@ -328,26 +335,26 @@ const app = new Hono()
         });
 
         if (!currentMember) {
-            return c.json({ error: "Unauthorized " }, 401);
+            throw new HTTPException(401, { message: "Unauthorized" });
         }
 
-        const project = await databases.getDocument<Project>(
-            DATABASES_ID,
-            PROJECTS_ID,
-            task.projectId,
-        );
+        const project = await databases.getRow<Project>({
+            databaseId: DATABASES_ID,
+            tableId: PROJECTS_ID,
+            rowId: task.projectId,
+        });
 
-        const member = await databases.getDocument<Member>(
-            DATABASES_ID,
-            MEMBERS_ID,
-            task.assigneeId,
-        );
+        const member = await databases.getRow<Member>({
+            databaseId: DATABASES_ID,
+            tableId: MEMBERS_ID,
+            rowId: task.assigneeId,
+        });
 
-        const user = await users.get(member.userId);
+        const user = await users.get({ userId: member.userId });
 
         const assignee = {
             ...member,
-            name: user.name || user.email,
+            name: user.name,
             email: user.email,
         };
 
@@ -362,7 +369,7 @@ const app = new Hono()
     .post(
         "/bulk-update",
         sessionMiddleware,
-        zValidator(
+        zodValidator(
             "json",
             z.object({
                 tasks: z.array(
@@ -384,32 +391,33 @@ const app = new Hono()
             const user = c.get("user");
             const { tasks } = c.req.valid("json");
 
-            const tasksToUpdate = await databases.listDocuments<Task>(
-                DATABASES_ID,
-                TASKS_ID,
-                [
+            const tasksToUpdate = await databases.listRows<Task>({
+                databaseId: DATABASES_ID,
+                tableId: TASKS_ID,
+                queries: [
                     Query.contains(
                         "$id",
                         tasks.map((task) => task.$id),
                     ),
                 ],
-            );
+            });
 
             const workspaceIds = new Set(
-                tasksToUpdate.documents.map((task) => task.workspaceId),
+                tasksToUpdate.rows.map((task) => task.workspaceId),
             );
 
             if (workspaceIds.size !== 1) {
-                return c.json(
-                    { error: "All tasks must belong to the same workspace" },
-                    400,
-                );
+                throw new HTTPException(400, {
+                    message: "All tasks must belong to the same workspace",
+                });
             }
 
             const workspaceId = workspaceIds.values().next().value;
 
             if (!workspaceId) {
-                return c.json({ error: "Not found" }, 404);
+                throw new HTTPException(404, {
+                    message: "Workspace not found",
+                });
             }
 
             const member = await getMember({
@@ -419,21 +427,22 @@ const app = new Hono()
             });
 
             if (!member) {
-                return c.json({ error: "Unauthorized " }, 401);
+                throw new HTTPException(401, { message: "Unauthorized" });
             }
-
+            const tx = await databases.createTransaction();
             const updatedTasks = await Promise.all(
                 tasks.map(async (task) => {
                     const { $id, status, position } = task;
-                    return databases.updateDocument<Task>(
-                        DATABASES_ID,
-                        TASKS_ID,
-                        $id,
-                        {
+                    return databases.updateRow<Task>({
+                        databaseId: DATABASES_ID,
+                        tableId: TASKS_ID,
+                        rowId: $id,
+                        data: {
                             status,
                             position,
                         },
-                    );
+                        transactionId: tx.$id,
+                    });
                 }),
             );
 
@@ -443,7 +452,7 @@ const app = new Hono()
     .post(
         "/bulk-delete",
         sessionMiddleware,
-        zValidator(
+        zodValidator(
             "json",
             z.object({
                 taskIds: z.array(z.string()),
@@ -454,27 +463,28 @@ const app = new Hono()
             const user = c.get("user");
             const { taskIds } = c.req.valid("json");
 
-            const tasksToDelete = await databases.listDocuments<Task>(
-                DATABASES_ID,
-                TASKS_ID,
-                [Query.contains("$id", taskIds)],
-            );
+            const tasksToDelete = await databases.listRows<Task>({
+                databaseId: DATABASES_ID,
+                tableId: TASKS_ID,
+                queries: [Query.contains("$id", taskIds)],
+            });
 
             const workspaceIds = new Set(
-                tasksToDelete.documents.map((task) => task.workspaceId),
+                tasksToDelete.rows.map((task) => task.workspaceId),
             );
 
             if (workspaceIds.size !== 1) {
-                return c.json(
-                    { error: "All tasks must belong to the same workspace" },
-                    400,
-                );
+                throw new HTTPException(400, {
+                    message: "All tasks must belong to the same workspace",
+                });
             }
 
             const workspaceId = workspaceIds.values().next().value;
 
             if (!workspaceId) {
-                return c.json({ error: "Not found" }, 404);
+                throw new HTTPException(404, {
+                    message: "Workspace not found",
+                });
             }
 
             const member = await getMember({
@@ -484,17 +494,17 @@ const app = new Hono()
             });
 
             if (!member) {
-                return c.json({ error: "Unauthorized " }, 401);
+                throw new HTTPException(401, { message: "Unauthorized" });
             }
 
-            await Promise.all(
-                taskIds.map((taskId) =>
-                    databases.deleteDocument(DATABASES_ID, TASKS_ID, taskId),
-                ),
-            );
+            databases.deleteRows({
+                databaseId: DATABASES_ID,
+                tableId: TASKS_ID,
+                queries: [Query.contains("taskId", taskIds)],
+            });
 
             return c.json({
-                data: tasksToDelete.documents.map((task) => task.$id),
+                data: tasksToDelete.rows.map((task) => task.$id),
             });
         },
     );

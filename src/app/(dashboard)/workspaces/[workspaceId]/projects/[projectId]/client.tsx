@@ -8,6 +8,7 @@ import { useGetProject } from "@/features/projects/api/use-get-project";
 import { useGetProjectAnalytics } from "@/features/projects/api/use-get-project-analytics";
 import { ProjectAvatar } from "@/features/projects/components/project-avatar";
 import { TaskViewSwitcher } from "@/features/tasks/components/task-view-switcher";
+import { ErrorResponse } from "@/types";
 import { PencilIcon } from "lucide-react";
 import Link from "next/link";
 
@@ -16,18 +17,41 @@ interface ClientProps {
 }
 
 export const Client = ({ projectId }: ClientProps) => {
-    const { data: project, isLoading: isLoadingProject } = useGetProject({
+    const {
+        data: project,
+        isLoading: isLoadingProject,
+        isError: isErrorProject,
+        error: errorProject,
+    } = useGetProject({
         projectId,
     });
-    const { data: analytics, isLoading: isLoadingAnalytics } =
-        useGetProjectAnalytics({ projectId });
+    const {
+        data: analytics,
+        isLoading: isLoadingAnalytics,
+        isError: isErrorAnalytics,
+        error: errorAnalytics,
+    } = useGetProjectAnalytics({ projectId });
 
     if (isLoadingProject || isLoadingAnalytics) {
         return <PageLoader />;
     }
 
+    if (isErrorAnalytics || isErrorProject) {
+        const allError = Array(
+            new Set([
+                errorAnalytics &&
+                    (errorAnalytics as unknown as ErrorResponse).error,
+
+                errorProject &&
+                    (errorProject as unknown as ErrorResponse).error,
+            ]),
+        );
+
+        return <PageError message={allError.join("\n")} />;
+    }
+
     if (!project) {
-        return <PageError message="Project not found" />;
+        return <PageError message="Failed to fetch project" />;
     }
 
     return (

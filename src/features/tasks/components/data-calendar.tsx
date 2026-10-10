@@ -9,7 +9,7 @@ import {
 import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { enUS } from "date-fns/locale";
 import { Calendar, dateFnsLocalizer } from "react-big-calendar";
-import { Task } from "../types";
+import { TaskPopulated } from "../types";
 import { useState } from "react";
 import { EventCard } from "./event-card";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ const localizer = dateFnsLocalizer({
 });
 
 interface DataCalendarProps {
-    data: Task[];
+    data: TaskPopulated[];
 }
 
 interface CustomToolbarProps {

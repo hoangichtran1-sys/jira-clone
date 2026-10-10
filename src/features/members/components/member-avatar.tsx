@@ -1,37 +1,19 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
-import Image from "next/image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn, getUserPhoto } from "@/lib/utils";
 
 interface MemberAvatarProps {
     name: string;
     className?: string;
     fallbackClassName?: string;
-    avatarUrl?: string;
+    avatarUserId?: string;
 }
 
 export const MemberAvatar = ({
     name,
     className,
     fallbackClassName,
-    avatarUrl,
+    avatarUserId,
 }: MemberAvatarProps) => {
-    if (avatarUrl) {
-        return (
-            <div
-                className={cn(
-                    "size-5 relative rounded-md overflow-hidden",
-                    className,
-                )}
-            >
-                <Image
-                    fill
-                    src={avatarUrl}
-                    alt={name}
-                    className="object-cover"
-                />
-            </div>
-        );
-    }
     return (
         <Avatar
             className={cn(
@@ -39,6 +21,10 @@ export const MemberAvatar = ({
                 className,
             )}
         >
+            <AvatarImage
+                src={getUserPhoto(avatarUserId) || undefined}
+                alt={name}
+            />
             <AvatarFallback
                 className={cn(
                     "bg-neutral-200 font-medium text-neutral-500 flex items-center justify-center",

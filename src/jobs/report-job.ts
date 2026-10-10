@@ -1,9 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { TaskStatus } from "@/features/tasks/types";
+import { Task, TaskStatus } from "@/features/tasks/types";
 import { Workspace } from "@/features/workspaces/types";
 import { Query, ID } from "node-appwrite";
-import { createAdminClient } from "@/lib/appwrite-client";
-import { DATABASES_ID, PROJECTS_ID, TASKS_ID, WORKSPACES_ID } from "@/config/appwrite";
+import { createAdminClient } from "@/lib/appwrite";
+import {
+    DATABASES_ID,
+    PROJECTS_ID,
+    TASKS_ID,
+    WORKSPACES_ID,
+} from "@/config/appwrite";
+import { Project } from "@/features/projects/types";
 
 export const processReportJob = async () => {
     try {
@@ -12,39 +18,55 @@ export const processReportJob = async () => {
         const now = new Date().toISOString();
 
         // 1. Lấy tất cả workspace
-        const workspaces = await databases.listDocuments<Workspace>(
-            DATABASES_ID,
-            WORKSPACES_ID,
-            [Query.limit(1000)],
-        );
+        const workspaces = await databases.listRows<Workspace>({
+            databaseId: DATABASES_ID,
+            tableId: WORKSPACES_ID,
+            queries: [Query.limit(1000)],
+        });
 
-        for (const workspace of workspaces.documents) {
+        for (const workspace of workspaces.rows) {
             // Sử dụng Promise.all để lấy 3 loại dữ liệu
             const [allTasks, projects, overdueTasks, doneTasks] =
                 await Promise.all([
                     // Tổng số task
-                    databases.listDocuments(DATABASES_ID, TASKS_ID, [
-                        Query.equal("workspaceId", workspace.$id),
-                        Query.limit(1),
-                    ]),
+                    databases.listRows<Task>({
+                        databaseId: DATABASES_ID,
+                        tableId: TASKS_ID,
+                        queries: [
+                            Query.equal("workspaceId", workspace.$id),
+                            Query.limit(1),
+                        ],
+                    }),
                     // Tổng số project
-                    databases.listDocuments(DATABASES_ID, PROJECTS_ID, [
-                        Query.equal("workspaceId", workspace.$id),
-                        Query.limit(1),
-                    ]),
+                    databases.listRows<Project>({
+                        databaseId: DATABASES_ID,
+                        tableId: PROJECTS_ID,
+                        queries: [
+                            Query.equal("workspaceId", workspace.$id),
+                            Query.limit(1),
+                        ],
+                    }),
                     // Task quá hạn
-                    databases.listDocuments(DATABASES_ID, TASKS_ID, [
-                        Query.equal("workspaceId", workspace.$id),
-                        Query.notEqual("status", TaskStatus.DONE),
-                        Query.lessThan("dueDate", now),
-                        Query.limit(1),
-                    ]),
+                    databases.listRows<Task>({
+                        databaseId: DATABASES_ID,
+                        tableId: TASKS_ID,
+                        queries: [
+                            Query.equal("workspaceId", workspace.$id),
+                            Query.notEqual("status", TaskStatus.DONE),
+                            Query.lessThan("dueDate", now),
+                            Query.limit(1),
+                        ],
+                    }),
                     // Task đã xong
-                    databases.listDocuments(DATABASES_ID, TASKS_ID, [
-                        Query.equal("workspaceId", workspace.$id),
-                        Query.equal("status", TaskStatus.DONE),
-                        Query.limit(1),
-                    ]),
+                    databases.listRows<Task>({
+                        databaseId: DATABASES_ID,
+                        tableId: TASKS_ID,
+                        queries: [
+                            Query.equal("workspaceId", workspace.$id),
+                            Query.equal("status", TaskStatus.DONE),
+                            Query.limit(1),
+                        ],
+                    }),
                 ]);
 
             const totalTasks = allTasks.total;
@@ -65,14 +87,13 @@ export const processReportJob = async () => {
       `;
 
             try {
-                await messaging.createEmail(
-                    ID.unique(),
-                    `Weekly Report - ${workspace.name}`,
-                    htmlContent,
-                    [`workspace_${workspace.$id}`],
-                    [],
-                    [],
-                );
+                await messaging.createEmail({
+                    messageId: ID.unique(),
+                    subject: `Weekly Report - ${workspace.name}`,
+                    content: htmlContent,
+                    topics: [`workspace_${workspace.$id}`],
+                    html: true,
+                });
                 console.log(`✅ Sent report for: ${workspace.name}`);
             } catch (sendErr: any) {
                 console.error(

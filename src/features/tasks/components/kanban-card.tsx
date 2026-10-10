@@ -1,13 +1,14 @@
 import { MoreHorizontalIcon } from "lucide-react";
-import { Task } from "../types";
+import { TaskPopulated } from "../types";
 import { TaskActions } from "./task-actions";
 import { DottedSeparator } from "@/components/dotted-separator";
 import { MemberAvatar } from "@/features/members/components/member-avatar";
 import { TaskDate } from "./task-date";
 import { ProjectAvatar } from "@/features/projects/components/project-avatar";
+import { USER_NAME_FALLBACK } from "@/constants";
 
 interface KanbanCardProps {
-    task: Task;
+    task: TaskPopulated;
 }
 
 export const KanbanCard = ({ task }: KanbanCardProps) => {
@@ -22,7 +23,8 @@ export const KanbanCard = ({ task }: KanbanCardProps) => {
             <DottedSeparator />
             <div className="flex items-center gap-x-1.5">
                 <MemberAvatar
-                    name={task.assignee.name}
+                    name={task.assignee?.name || USER_NAME_FALLBACK}
+                    avatarUserId={task.assignee?.userId}
                     fallbackClassName="text-[10px]"
                 />
                 <div className="size-1 rounded-full bg-neutral-300" />

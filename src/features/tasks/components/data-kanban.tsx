@@ -5,7 +5,7 @@ import {
     Draggable,
     type DropResult,
 } from "@hello-pangea/dnd";
-import { Task, TaskStatus } from "../types";
+import { TaskPopulated, TaskStatus } from "../types";
 import { KanbanColumnHeader } from "./kanban-column-header";
 import { KanbanCard } from "./kanban-card";
 
@@ -18,11 +18,11 @@ const boards: TaskStatus[] = [
 ];
 
 type TasksState = {
-    [key in TaskStatus]: Task[];
+    [key in TaskStatus]: TaskPopulated[];
 };
 
 interface DataKanbanProps {
-    data: Task[];
+    data: TaskPopulated[];
     onChange: (
         tasks: { $id: string; status: TaskStatus; position: number }[],
     ) => void;

@@ -1,9 +1,9 @@
 procs:
-  ngrok:
-    cmd: ["bun", "run", "dev:webhook"]
+    next:
+        cmd: ["bun", "run", "dev"]
 
-  next:
-    cmd: ["bun", "run", "dev"]
+    worker:
+        cmd: ["bun", "run", "dev:trigger"]
 
-  worker:
-    cmd: ["bun", "run", "queue:work"]
+    ngrok:
+        cmd: ["bun", "run", "dev:webhook"]

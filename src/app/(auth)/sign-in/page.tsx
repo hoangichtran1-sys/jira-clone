@@ -1,11 +1,8 @@
-import { getCurrent } from "@/features/auth/queries";
 import { SignInCard } from "@/features/auth/components/sign-in-card";
-import { redirect } from "next/navigation";
+import { requireUnauth } from "@/lib/auth-utils";
 
 const Page = async () => {
-    const user = await getCurrent();
-
-    if (user) redirect("/");
+    await requireUnauth();
 
     return <SignInCard />;
 };

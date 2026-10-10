@@ -1,4 +1,5 @@
 import { client } from "@/lib/rpc";
+import { ErrorResponse } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 
 interface UseGetProjectsProps {
@@ -15,7 +16,9 @@ export const useGetProjects = ({ workspaceId }: UseGetProjectsProps) => {
             });
 
             if (!response.ok) {
-                throw new Error("Failed to fetch projects");
+                const errorResponse =
+                    (await response.json()) as unknown as ErrorResponse;
+                throw errorResponse;
             }
 
             const { data } = await response.json();

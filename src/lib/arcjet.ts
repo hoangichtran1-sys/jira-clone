@@ -4,9 +4,10 @@ import arcjet, {
     slidingWindow,
     tokenBucket,
 } from "@arcjet/next";
+import { env } from "./env";
 
-const arcjetKey = process.env.ARCJET_KEY!;
-const arcjetMode = process.env.ARCJECT_MODE === "DRY_RUN" ? "DRY_RUN" : "LIVE";
+const arcjetKey = env.ARCJET_KEY;
+const arcjetMode = env.ARCJECT_MODE === "DRY_RUN" ? "DRY_RUN" : "LIVE";
 
 export const baseArcjet = arcjetKey
     ? arcjet({
@@ -21,7 +22,7 @@ export const baseArcjet = arcjetKey
                   mode: arcjetMode,
                   characteristics: ["ip.src"],
                   interval: "60s",
-                  max: 300,
+                  max: 600,
               }),
           ],
       })

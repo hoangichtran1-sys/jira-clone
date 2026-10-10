@@ -1,29 +1,33 @@
-import { bootstrap } from "@/lib/bootstrap";
+// import { bootstrap } from "@/lib/bootstrap";
+// import { env } from "@/lib/env";
 
-async function startWorker() {
-    try {
-        bootstrap();
+// async function startWorker() {
+//     try {
+//         bootstrap();
 
-        console.log("REDIS_URL:", process.env.REDIS_URL ? "Đã tìm thấy ✅" : "Không tồn tại ❌");
+//         console.log(
+//             "REDIS_URL:",
+//             env.REDIS_URL ? "Đã tìm thấy ✅" : "Không tồn tại ❌",
+//         );
 
-        const { loadWorkers } = await import("./load-workers");
-        const { enqueueReportCronJob } = await import("@/queues/report-queue");
-        const { enqueueTaskReminderCronJob } = await import("@/queues/task-reminder-queue");
+//         const { loadWorkers } = await import("./load-workers");
+//         const { enqueueReportCronJob } = await import("@/queues/report-queue");
+//         const { enqueueTaskReminderCronJob } =
+//             await import("@/queues/task-reminder-queue");
 
-        await loadWorkers();
-        console.log("🚀 All workers started successfully");
+//         await loadWorkers();
+//         console.log("🚀 All workers started successfully");
 
-        await Promise.all([
-            enqueueReportCronJob(), 
-            enqueueTaskReminderCronJob()
-        ]);
-        
-        console.log("📅 Cron jobs enqueued");
+//         await Promise.all([
+//             enqueueReportCronJob(),
+//             enqueueTaskReminderCronJob(),
+//         ]);
 
-    } catch (error) {
-        console.error("❌ Lỗi trong quá trình khởi động Worker:", error);
-        process.exit(1);
-    }
-}
+//         console.log("📅 Cron jobs enqueued");
+//     } catch (error) {
+//         console.error("❌ Lỗi trong quá trình khởi động Worker:", error);
+//         process.exit(1);
+//     }
+// }
 
-startWorker();
+// startWorker();

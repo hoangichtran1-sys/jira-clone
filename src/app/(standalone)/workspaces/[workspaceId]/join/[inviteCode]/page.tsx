@@ -1,6 +1,5 @@
-import { getCurrent } from "@/features/auth/queries";
-import { redirect } from "next/navigation";
 import { Client } from "./client";
+import { requireAuth } from "@/lib/auth-utils";
 
 interface PageProps {
     params: Promise<{
@@ -10,9 +9,7 @@ interface PageProps {
 }
 
 const Page = async ({ params }: PageProps) => {
-    const user = await getCurrent();
-
-    if (!user) redirect("/sign-in");
+    await requireAuth();
 
     const { workspaceId, inviteCode } = await params;
 

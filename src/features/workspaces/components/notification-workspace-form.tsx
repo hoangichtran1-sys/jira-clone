@@ -61,7 +61,7 @@ export const NotificationWorkspaceForm = ({
             senderId: currentUserId,
             receiverId: values.receiverId,
         });
-        toast("Notification sending...")
+        toast("Notification sending...");
         onCancel?.();
     };
 
@@ -110,6 +110,9 @@ export const NotificationWorkspaceForm = ({
                                                                 className="size-6"
                                                                 name={
                                                                     member.name
+                                                                }
+                                                                avatarUserId={
+                                                                    member.receiverId
                                                                 }
                                                             />
                                                             {member.name}

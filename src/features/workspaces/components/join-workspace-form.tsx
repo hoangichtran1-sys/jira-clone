@@ -9,22 +9,36 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
+import {
+    Avatar,
+    AvatarFallback,
+    AvatarGroup,
+    AvatarGroupCount,
+    AvatarImage,
+} from "@/components/ui/avatar";
 import Link from "next/link";
 import { useJoinWorkspace } from "../api/use-join-workspace";
 import { useWorkspaceId } from "../hooks/use-workspace-id";
 import { useRouter } from "next/navigation";
 import { WorkspaceAvatar } from "./workspace-avatar";
+import { MemberPopulated } from "@/features/members/types";
+import { useMemo } from "react";
+import { getUserPhoto } from "@/lib/utils";
 
 interface JoinWorkspaceFormProps {
     name: string;
     inviteCode: string;
-    imageUrl: string;
+    imageUrl?: string;
+    membersInfo: Array<
+        Pick<MemberPopulated, "role" | "userId" | "name" | "email">
+    >;
 }
 
 export const JoinWorkspaceForm = ({
     name,
     inviteCode,
     imageUrl,
+    membersInfo,
 }: JoinWorkspaceFormProps) => {
     const router = useRouter();
     const workspaceId = useWorkspaceId();
@@ -44,15 +58,45 @@ export const JoinWorkspaceForm = ({
         );
     };
 
+    const [members, remainingCount] = useMemo(() => {
+        if (membersInfo.length > 2) {
+            const membersDisplay = membersInfo.slice(0, 2);
+            const membersRemainingCount = membersInfo.slice(2).length;
+            return [membersDisplay, membersRemainingCount];
+        }
+
+        return [membersInfo, 0];
+    }, [membersInfo]);
+
     return (
         <Card className="w-full h-full border-none shadow-none">
             <CardHeader className="p-7">
                 <CardTitle className="text-xl font-bold">
                     <div className="flex items-center justify-between">
-                        <span>Join workspace</span>
+                        <span>Join workspace {name}</span>
                         <WorkspaceAvatar name={name} image={imageUrl} />
                     </div>
                 </CardTitle>
+                {/* Group member avatar */}
+                <AvatarGroup className="flex items-center">
+                    {members.map((item) => (
+                        <Avatar key={item.userId}>
+                            <AvatarImage
+                                src={
+                                    getUserPhoto(item.userId, 72, 72) ||
+                                    undefined
+                                }
+                                alt={item.name || "User Avatar"}
+                            />
+                            <AvatarFallback className="text-white bg-blue-500 text-sm uppercase">
+                                {item.name.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                        </Avatar>
+                    ))}
+                    {remainingCount > 0 && (
+                        <AvatarGroupCount>+{remainingCount}</AvatarGroupCount>
+                    )}
+                </AvatarGroup>
                 <CardDescription>
                     You&apos;ve been invited to join <strong>{name}</strong>{" "}
                     workspace.

@@ -1,11 +1,8 @@
-import { getCurrent } from "@/features/auth/queries";
 import { CreateWorkspaceForm } from "@/features/workspaces/components/create-workspace-form";
-import { redirect } from "next/navigation";
+import { requireAuth } from "@/lib/auth-utils";
 
 const Page = async () => {
-    const user = await getCurrent();
-
-    if (!user) redirect("/sign-in");
+    await requireAuth();
 
     return (
         <div className="w-full lg:max-w-xl">

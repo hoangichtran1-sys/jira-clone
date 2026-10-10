@@ -1,6 +1,8 @@
 "use client";
 
 import { DottedSeparator } from "@/components/dotted-separator";
+import { PageError } from "@/components/page-error";
+import { PageLoader } from "@/components/page-loader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +13,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import { USER_NAME_FALLBACK } from "@/constants";
 import { useDeleteMember } from "@/features/members/api/use-delete-member";
 import { useGetMembers } from "@/features/members/api/use-get-members";
 import { useUpdateMember } from "@/features/members/api/use-update-member";
@@ -18,6 +21,7 @@ import { MemberAvatar } from "@/features/members/components/member-avatar";
 import { MemberRole } from "@/features/members/types";
 import { useConfirm } from "@/hooks/use-confirm";
 import { cn } from "@/lib/utils";
+import { ErrorResponse } from "@/types";
 import { ArrowLeftIcon, MoreVerticalIcon } from "lucide-react";
 import Link from "next/link";
 import { Fragment } from "react";
@@ -27,7 +31,12 @@ interface MembersListProps {
 }
 
 export const MembersList = ({ workspaceId }: MembersListProps) => {
-    const { data: members } = useGetMembers({ workspaceId });
+    const {
+        data: members,
+        isError,
+        error,
+        isLoading,
+    } = useGetMembers({ workspaceId });
     const deleteMember = useDeleteMember();
     const updateMember = useUpdateMember();
 
@@ -40,6 +49,7 @@ export const MembersList = ({ workspaceId }: MembersListProps) => {
     const handleUpdateMember = (memberId: string, role: MemberRole) => {
         updateMember.mutate({
             param: { memberId },
+            query: { workspaceId },
             json: { role },
         });
     };
@@ -50,8 +60,19 @@ export const MembersList = ({ workspaceId }: MembersListProps) => {
 
         deleteMember.mutate({
             param: { memberId },
+            query: { workspaceId },
         });
     };
+
+    if (isLoading) {
+        return <PageLoader />;
+    }
+
+    if (isError) {
+        const err = (error as unknown as ErrorResponse).error;
+
+        return <PageError message={err} />;
+    }
 
     return (
         <>
@@ -79,10 +100,11 @@ export const MembersList = ({ workspaceId }: MembersListProps) => {
                                     className="size-10"
                                     fallbackClassName="text-lg"
                                     name={member.name || member.email}
+                                    avatarUserId={member.userId}
                                 />
                                 <div className="flex flex-col">
                                     <p className="text-sm font-medium truncate">
-                                        {member.name || member.email}
+                                        {member.name || USER_NAME_FALLBACK}
                                     </p>
                                     <p className="text-xs text-muted-foreground truncate">
                                         {member.email}

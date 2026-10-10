@@ -1,4 +1,5 @@
 import { client } from "@/lib/rpc";
+import { ErrorResponse } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import { InferResponseType } from "hono";
 
@@ -7,8 +8,7 @@ interface UseGetWorkspaceAnalyticsProps {
 }
 
 export type WorkspaceAnalyticsResponseType = InferResponseType<
-    (typeof client.api.workspaces)[":workspaceId"]["analytics"]["$get"],
-    200
+    (typeof client.api.workspaces)[":workspaceId"]["analytics"]["$get"]
 >;
 
 export const useGetWorkspaceAnalytics = ({
@@ -24,7 +24,9 @@ export const useGetWorkspaceAnalytics = ({
             });
 
             if (!response.ok) {
-                throw new Error("Failed to fetch workspace analytics");
+                const errorResponse =
+                    (await response.json()) as unknown as ErrorResponse;
+                throw errorResponse;
             }
 
             const { data } = await response.json();

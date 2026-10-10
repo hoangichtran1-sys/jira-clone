@@ -13,15 +13,16 @@ type RequestType = InferRequestType<
 >;
 
 export const useSendEmailInvitation = () => {
-    const mutation = useMutation<ResponseType, Error, RequestType>({
+    const mutation = useMutation<ResponseType, ErrorResponse, RequestType>({
         mutationFn: async ({ query, json }) => {
             const response = await client.api.workspaces[
                 "send-email-invitation"
             ]["$post"]({ query, json });
 
             if (!response.ok) {
-                const errorBody = (await response.json()) as ErrorResponse;
-                throw new Error(errorBody.error);
+                const errorResponse =
+                    (await response.json()) as unknown as ErrorResponse;
+                throw errorResponse;
             }
 
             return await response.json();
@@ -30,8 +31,8 @@ export const useSendEmailInvitation = () => {
             toast.success("Send email successfully");
             console.log(data);
         },
-        onError: (error) => {
-            toast.error(error.message);
+        onError: (err) => {
+            toast.error(err.error);
         },
     });
 

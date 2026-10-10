@@ -1,12 +1,14 @@
 import { sessionMiddleware } from "@/lib/session-middleware";
 import { Hono } from "hono";
 import { ably } from "@/lib/ably-rest";
-import { zValidator } from "@hono/zod-validator";
+import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { getMember } from "@/features/members/utils";
 import { createAdminClient } from "@/lib/appwrite";
 import { DATABASES_ID, MEMBERS_ID } from "@/config/appwrite";
-import { PresenceEvent } from "@/features/members/types";
+import { Member, PresenceEvent } from "@/features/members/types";
+import { env } from "@/lib/env";
+import { zodValidator } from "@/lib/zod-validator";
 
 const app = new Hono()
     .get("/auth", sessionMiddleware, async (c) => {
@@ -23,7 +25,7 @@ const app = new Hono()
     })
     .get(
         "/workspace",
-        zValidator(
+        zodValidator(
             "query",
             z.object({
                 workspaceId: z.string(),
@@ -42,7 +44,7 @@ const app = new Hono()
             });
 
             if (!member) {
-                return c.json({ error: "Unauthorized" }, 401);
+                throw new HTTPException(401, { message: "Unauthorized" });
             }
 
             const tokenRequestData = await ably.auth.createTokenRequest({
@@ -63,7 +65,7 @@ const app = new Hono()
     .post("/webhook", async (c) => {
         const secret = c.req.header("x-webhook-secret");
 
-        if (!secret || secret !== process.env.ABLY_WEBHOOK_SECRET) {
+        if (!secret || secret !== env.ABLY_WEBHOOK_SECRET) {
             return c.json({ error: "Unauthorized" }, 401);
         }
         const body = await c.req.json();
@@ -89,14 +91,14 @@ const app = new Hono()
                     return c.json({ error: "Unauthorized" }, 401);
                 }
 
-                await databases.updateDocument(
-                    DATABASES_ID,
-                    MEMBERS_ID,
-                    member.$id,
-                    {
-                        lastSeen: new Date(),
+                await databases.updateRow<Member>({
+                    databaseId: DATABASES_ID,
+                    tableId: MEMBERS_ID,
+                    rowId: member.$id,
+                    data: {
+                        lastSeen: new Date().toISOString(),
                     },
-                );
+                });
             } else {
                 return c.json({ error: "No support event action" }, 406);
             }

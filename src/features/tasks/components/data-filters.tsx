@@ -16,6 +16,9 @@ import { TaskStatus } from "../types";
 import { useTaskFilters } from "../hooks/use-task-filters";
 import { useEntitySearch } from "@/hooks/use-entity-search";
 import { EntitySearch } from "@/components/entity-search";
+import { ErrorResponse } from "@/types";
+import { useEffect } from "react";
+import { toast } from "sonner";
 //import { Button } from "@/components/ui/button";
 
 interface DataFiltersProps {
@@ -27,17 +30,28 @@ export const DataFilters = ({
 }: DataFiltersProps) => {
     const workspaceId = useWorkspaceId();
 
-    const { data: projects, isLoading: isLoadingProjects } = useGetProjects({
+    const {
+        data: projects,
+        isLoading: isLoadingProjects,
+        error: errorProjects,
+        isError: isErrorProjects,
+    } = useGetProjects({
         workspaceId,
     });
 
-    const { data: members, isLoading: isLoadingMembers } = useGetMembers({
+    const {
+        data: members,
+        isLoading: isLoadingMembers,
+        isError: isErrorMembers,
+        error: errorMembers,
+    } = useGetMembers({
         workspaceId,
     });
 
     const isLoading = isLoadingMembers || isLoadingProjects;
+    const isError = isErrorMembers || isErrorProjects;
 
-    const projectOptions = projects?.documents.map((project) => ({
+    const projectOptions = projects?.rows.map((project) => ({
         value: project.$id,
         label: project.name,
     }));
@@ -78,6 +92,20 @@ export const DataFilters = ({
             setFilters({ projectId: value as string });
         }
     };
+
+    useEffect(() => {
+        if (isError) {
+            const allError = Array(
+                new Set([
+                    errorMembers &&
+                        (errorMembers as unknown as ErrorResponse).error,
+                    errorProjects &&
+                        (errorProjects as unknown as ErrorResponse).error,
+                ]),
+            );
+            toast.error(allError.join("\n"));
+        }
+    }, [errorMembers, errorProjects, isError]);
 
     if (isLoading) return null;
 

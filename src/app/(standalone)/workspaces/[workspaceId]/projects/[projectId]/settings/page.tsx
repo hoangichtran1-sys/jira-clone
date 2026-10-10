@@ -1,19 +1,17 @@
-import { getCurrent } from "@/features/auth/queries";
-import { redirect } from "next/navigation";
 import { Client } from "./client";
+import { requireAuth } from "@/lib/auth-utils";
 
 interface PageProps {
     params: Promise<{
         projectId: string;
+        workspaceId: string;
     }>;
 }
 
 const Page = async ({ params }: PageProps) => {
-    const user = await getCurrent();
-
-    if (!user) redirect("/sign-in");
-
     const { projectId } = await params;
+
+    await requireAuth();
 
     return <Client projectId={projectId} />;
 };

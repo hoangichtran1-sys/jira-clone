@@ -1,9 +1,9 @@
 import { DATABASES_ID, SUBSCRIPTION_ID } from "@/config/appwrite";
-import { Query, type Databases } from "node-appwrite";
+import { Query, type TablesDB } from "node-appwrite";
 import { Subscription } from "./types";
 
 interface GetCurrentSubscriptionProps {
-    databases: Databases;
+    databases: TablesDB;
     userId: string;
 }
 
@@ -11,11 +11,15 @@ export const getCurrentSubscription = async ({
     databases,
     userId,
 }: GetCurrentSubscriptionProps) => {
-    const subscription = await databases.listDocuments<Subscription>(
-        DATABASES_ID,
-        SUBSCRIPTION_ID,
-        [Query.equal("userId", userId)],
-    );
+    const subscription = await databases.listRows<Subscription>({
+        databaseId: DATABASES_ID,
+        tableId: SUBSCRIPTION_ID,
+        queries: [Query.equal("userId", userId)],
+    });
 
-    return subscription.documents[0] || null;
+    if (subscription.total === 0) {
+        return null;
+    }
+
+    return subscription.rows[0];
 };

@@ -1,4 +1,5 @@
 import { client } from "@/lib/rpc";
+import { ErrorResponse } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { InferRequestType, InferResponseType } from "hono";
 import { useRouter } from "next/navigation";
@@ -11,12 +12,14 @@ export const useCreateTask = () => {
     const router = useRouter();
     const queryClient = useQueryClient();
 
-    const mutation = useMutation<ResponseType, Error, RequestType>({
+    const mutation = useMutation<ResponseType, ErrorResponse, RequestType>({
         mutationFn: async ({ json }) => {
             const response = await client.api.tasks["$post"]({ json });
 
             if (!response.ok) {
-                throw new Error("Failed to create task");
+                const errorResponse =
+                    (await response.json()) as unknown as ErrorResponse;
+                throw errorResponse;
             }
 
             return await response.json();
@@ -30,8 +33,8 @@ export const useCreateTask = () => {
             });
             queryClient.invalidateQueries({ queryKey: ["tasks"] });
         },
-        onError: () => {
-            toast.error("Failed to create task");
+        onError: (err) => {
+            toast.error(err.error);
         },
     });
 

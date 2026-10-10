@@ -1,20 +1,45 @@
+import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
+import { z } from "zod";
+import { tasks } from "@trigger.dev/sdk";
 import { createAdminClient } from "@/lib/appwrite";
 import { sessionMiddleware } from "@/lib/session-middleware";
-import { zValidator } from "@hono/zod-validator";
-import { Hono } from "hono";
-import { z } from "zod";
 import { getMember } from "../utils";
-import { DATABASES_ID, MEMBERS_ID } from "@/config/appwrite";
+import { DATABASES_ID, MEMBERS_ID, WORKSPACES_ID } from "@/config/appwrite";
 import { Query } from "node-appwrite";
 import { Member, MemberRole } from "../types";
 import { ably } from "@/lib/ably-rest";
-import { enqueueSendEmailDeleteMember } from "@/queues/email-queue";
+import type { sendEmailDeleteMember } from "@/trigger/send-mail-tasks";
+import { Workspace } from "@/features/workspaces/types";
+import { zodValidator } from "@/lib/zod-validator";
 
 const app = new Hono()
     .get(
+        "/current-member",
+        zodValidator("query", z.object({ workspaceId: z.string() })),
+        sessionMiddleware,
+        async (c) => {
+            const { workspaceId } = c.req.valid("query");
+            const databases = c.get("databases");
+            const user = c.get("user");
+
+            const member = await getMember({
+                databases,
+                workspaceId,
+                userId: user.$id,
+            });
+
+            if (!member) {
+                throw new HTTPException(401, { message: "Unauthorized" });
+            }
+
+            return c.json({ data: member }, 200);
+        },
+    )
+    .get(
         "/",
         sessionMiddleware,
-        zValidator("query", z.object({ workspaceId: z.string() })),
+        zodValidator("query", z.object({ workspaceId: z.string() })),
         async (c) => {
             const { users } = await createAdminClient();
             const databases = c.get("databases");
@@ -28,18 +53,18 @@ const app = new Hono()
             });
 
             if (!member) {
-                return c.json({ error: "Unauthorized" }, 401);
+                throw new HTTPException(401, { message: "Unauthorized" });
             }
 
-            const members = await databases.listDocuments<Member>(
-                DATABASES_ID,
-                MEMBERS_ID,
-                [Query.equal("workspaceId", workspaceId)],
-            );
+            const members = await databases.listRows<Member>({
+                databaseId: DATABASES_ID,
+                tableId: MEMBERS_ID,
+                queries: [Query.equal("workspaceId", workspaceId)],
+            });
 
             const populatedMembers = await Promise.all(
-                members.documents.map(async (member) => {
-                    const user = await users.get(member.userId);
+                members.rows.map(async (member) => {
+                    const user = await users.get({ userId: member.userId });
 
                     return {
                         ...member,
@@ -58,175 +83,195 @@ const app = new Hono()
             });
         },
     )
-    .delete("/:memberId", sessionMiddleware, async (c) => {
-        const { memberId } = c.req.param();
-        const user = c.get("user");
-        const databases = c.get("databases");
-        const { messaging, users } = await createAdminClient();
-
-        const memberToDelete = await databases.getDocument<Member>(
-            DATABASES_ID,
-            MEMBERS_ID,
-            memberId,
-        );
-
-        const allMembersInWorkspace = await databases.listDocuments(
-            DATABASES_ID,
-            MEMBERS_ID,
-            [Query.equal("workspaceId", memberToDelete.workspaceId)],
-        );
-
-        const member = await getMember({
-            databases,
-            workspaceId: memberToDelete.workspaceId,
-            userId: user.$id,
-        });
-
-        const isSelf = member.$id === memberToDelete.$id;
-        const isAdmin = member.role === MemberRole.ADMIN;
-        const isTargetAdmin = memberToDelete.role === MemberRole.ADMIN;
-        const populatedMemberEmail = (await users.get(memberToDelete.userId))
-            .email;
-
-        const isLastAdmin =
-            memberToDelete.role === MemberRole.ADMIN &&
-            allMembersInWorkspace.documents.filter(
-                (m) => m.role === MemberRole.ADMIN,
-            ).length === 1;
-
-        if (!member) {
-            return c.json({ error: "Unauthorized" }, 401);
-        }
-
-        if (member.workspaceId !== memberToDelete.workspaceId) {
-            return c.json({ error: "Unauthorized" }, 401);
-        }
-
-        if (allMembersInWorkspace.total === 1) {
-            return c.json({ error: "Cannot delete the only member" }, 400);
-        }
-
-        if (!isSelf && !isAdmin) {
-            return c.json({ error: "Unauthorized" }, 401);
-        }
-
-        if (isTargetAdmin && !isSelf) {
-            return c.json({ error: "Cannot remove another admin" }, 400);
-        }
-
-        if (isLastAdmin) {
-            return c.json({ error: "Cannot delete the last admin" }, 400);
-        }
-
-        await databases.deleteDocument(DATABASES_ID, MEMBERS_ID, memberId);
-
-        // unsubscribe
-        messaging.deleteSubscriber(
-            `workspace_${memberToDelete.workspaceId}`,
-            memberToDelete.subscriberId,
-        );
-
-        // publish message
-        const channel = ably.channels.get(
-            `notification:workspace:${memberToDelete.workspaceId}`,
-        );
-
-        await channel.publish("remove-member", {
-            userId: user.$id,
-            workspaceId: memberToDelete.workspaceId,
-            memberIdToDelete: memberToDelete.userId,
-            message: `The member with email ${populatedMemberEmail} has left the workspace.`,
-            timestamp: new Date().toISOString(),
-        });
-
-        await enqueueSendEmailDeleteMember({
-            from: `"Workspace admin" <${user.email}>`,
-            email: populatedMemberEmail,
-            subject: `Member deleted from workspace "${memberToDelete.workspaceId}"`,
-            html: `
-                <p>You have been removed from the workspace group by the        administrator.</p><br>
-                <p>Contact them for more details.</p>
-            `,
-        });
-
-        return c.json({ data: { $id: memberToDelete.$id } });
-    })
-    .patch(
+    .delete(
         "/:memberId",
+        zodValidator("query", z.object({ workspaceId: z.string() })),
         sessionMiddleware,
-        zValidator("json", z.object({ role: z.nativeEnum(MemberRole) })),
         async (c) => {
             const { memberId } = c.req.param();
-            const { role } = c.req.valid("json");
+            const { workspaceId } = c.req.valid("query");
+
             const user = c.get("user");
             const databases = c.get("databases");
+            const { messaging, users } = await createAdminClient();
 
-            const memberToUpdate = await databases.getDocument(
-                DATABASES_ID,
-                MEMBERS_ID,
-                memberId,
-            );
+            const memberToDelete = await databases.getRow<Member>({
+                databaseId: DATABASES_ID,
+                tableId: MEMBERS_ID,
+                rowId: memberId,
+            });
 
-            const allMembersInWorkspace = await databases.listDocuments(
-                DATABASES_ID,
-                MEMBERS_ID,
-                [Query.equal("workspaceId", memberToUpdate.workspaceId)],
-            );
+            const workspace = await databases.getRow<Workspace>({
+                databaseId: DATABASES_ID,
+                tableId: WORKSPACES_ID,
+                rowId: workspaceId,
+            });
 
             const member = await getMember({
                 databases,
-                workspaceId: memberToUpdate.workspaceId,
+                workspaceId,
                 userId: user.$id,
             });
 
-            const isAdmin = member.role === MemberRole.ADMIN;
-            const isSelf = member.$id === memberToUpdate.$id;
-
-            const isLastAdmin =
-                memberToUpdate.role === MemberRole.ADMIN &&
-                allMembersInWorkspace.documents.filter(
-                    (m) => m.role === MemberRole.ADMIN,
-                ).length === 1;
-
             if (!member) {
-                return c.json({ error: "Unauthorized" }, 401);
+                throw new HTTPException(401, { message: "Unauthorized" });
             }
 
-            if (member.workspaceId !== memberToUpdate.workspaceId) {
-                return c.json({ error: "Unauthorized" }, 401);
+            if (member.workspaceId !== memberToDelete.workspaceId) {
+                throw new HTTPException(403, {
+                    message: "Cannot delete member in other workspace",
+                });
             }
 
-            if (allMembersInWorkspace.total === 1) {
-                return c.json(
-                    { error: "Cannot downgrade the only member" },
-                    400,
-                );
+            const isSelf = member.$id === memberToDelete.$id;
+            const isAdmin = member.role === MemberRole.ADMIN;
+            const isOwnerDelete = workspace.userId === memberToDelete.userId;
+            const isOwnerWorkspace = workspace.userId === member.userId;
+            const populatedMemberEmail = (
+                await users.get({ userId: memberToDelete.userId })
+            ).email;
+
+            if (isOwnerDelete) {
+                throw new HTTPException(400, {
+                    message: "Cannot delete the owner workspace",
+                });
             }
 
             if (!isAdmin) {
-                return c.json({ error: "Unauthorized" }, 401);
+                throw new HTTPException(403, { message: "Forbidden" });
+            }
+
+            if (
+                memberToDelete.role === MemberRole.ADMIN &&
+                !isSelf &&
+                !isOwnerWorkspace
+            ) {
+                throw new HTTPException(400, {
+                    message: "Cannot delete another admin",
+                });
+            }
+
+            await databases.deleteRow({
+                databaseId: DATABASES_ID,
+                tableId: MEMBERS_ID,
+                rowId: memberId,
+            });
+
+            // unsubscribe
+            messaging.deleteSubscriber({
+                topicId: `workspace_${memberToDelete.workspaceId}`,
+                subscriberId: memberToDelete.subscriberId,
+            });
+
+            // publish message
+            const channel = ably.channels.get(
+                `notification:workspace:${memberToDelete.workspaceId}`,
+            );
+
+            await channel.publish("remove-member", {
+                userId: user.$id,
+                workspaceId: memberToDelete.workspaceId,
+                memberIdToDelete: memberToDelete.userId,
+                message: `The member with email ${populatedMemberEmail} has left the workspace.`,
+                timestamp: new Date().toISOString(),
+            });
+
+            const handle = await tasks.trigger<typeof sendEmailDeleteMember>(
+                "send-email-delete-member",
+                {
+                    from: `"Workspace admin" <${user.email}>`,
+                    email: populatedMemberEmail,
+                    subject: `Member deleted from workspace "${memberToDelete.workspaceId}"`,
+                    html: `
+                <p>You have been removed from the workspace group by the administrator.</p><br>
+                <p>Contact them for more details.</p>
+            `,
+                },
+            );
+
+            console.log(handle);
+
+            return c.json({ data: { $id: memberToDelete.$id } });
+        },
+    )
+    .patch(
+        "/:memberId",
+        sessionMiddleware,
+        zodValidator("query", z.object({ workspaceId: z.string() })),
+        zodValidator("json", z.object({ role: z.nativeEnum(MemberRole) })),
+        async (c) => {
+            const { memberId } = c.req.param();
+            const { role } = c.req.valid("json");
+            const { workspaceId } = c.req.valid("query");
+            const user = c.get("user");
+            const databases = c.get("databases");
+
+            const memberToUpdate = await databases.getRow<Member>({
+                databaseId: DATABASES_ID,
+                tableId: MEMBERS_ID,
+                rowId: memberId,
+            });
+
+            const workspace = await databases.getRow<Workspace>({
+                databaseId: DATABASES_ID,
+                tableId: WORKSPACES_ID,
+                rowId: workspaceId,
+            });
+
+            const member = await getMember({
+                databases,
+                workspaceId,
+                userId: user.$id,
+            });
+
+            if (!member) {
+                throw new HTTPException(401, { message: "Unauthorized" });
+            }
+
+            if (member.workspaceId !== memberToUpdate.workspaceId) {
+                throw new HTTPException(403, {
+                    message: "Cannot updata member in other workspace",
+                });
+            }
+
+            const isAdmin = member.role === MemberRole.ADMIN;
+            const isSelf = member.$id === memberToUpdate.$id;
+            const isOwnerUpdate = workspace.userId === memberToUpdate.userId;
+            const isOwnerWorkspace = workspace.userId === member.userId;
+
+            if (isOwnerUpdate) {
+                throw new HTTPException(400, {
+                    message: "Cannot update the owner workspace",
+                });
+            }
+
+            if (!isAdmin) {
+                throw new HTTPException(403, { message: "Forbidden" });
             }
 
             if (isSelf && role === member.role) {
-                return c.json(
-                    { error: "Cannot update your own role is conflict" },
-                    409,
-                );
+                throw new HTTPException(409, {
+                    message: "Cannot update your own role is conflict",
+                });
             }
 
-            if (memberToUpdate.role === MemberRole.ADMIN && !isSelf) {
-                return c.json({ error: "Cannot update another admin" }, 400);
+            if (
+                memberToUpdate.role === MemberRole.ADMIN &&
+                !isSelf &&
+                !isOwnerWorkspace
+            ) {
+                throw new HTTPException(400, {
+                    message: "Cannot update another admin",
+                });
             }
 
-            if (isLastAdmin) {
-                return c.json(
-                    { error: "Cannot downgrade the last admin" },
-                    400,
-                );
-            }
-
-            await databases.updateDocument(DATABASES_ID, MEMBERS_ID, memberId, {
-                role,
+            await databases.updateRow<Member>({
+                databaseId: DATABASES_ID,
+                tableId: MEMBERS_ID,
+                rowId: memberId,
+                data: {
+                    role,
+                },
             });
 
             return c.json({ data: { $id: memberToUpdate.$id } });

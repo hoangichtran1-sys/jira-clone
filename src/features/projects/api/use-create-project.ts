@@ -15,13 +15,14 @@ export const useCreateProject = () => {
     const router = useRouter();
     const queryClient = useQueryClient();
 
-    const mutation = useMutation<ResponseType, Error, RequestType>({
+    const mutation = useMutation<ResponseType, ErrorResponse, RequestType>({
         mutationFn: async ({ form }) => {
             const response = await client.api.projects["$post"]({ form });
 
             if (!response.ok) {
-                const errorBody = (await response.json()) as ErrorResponse;
-                throw new Error(errorBody.error);
+                const errorResponse =
+                    (await response.json()) as unknown as ErrorResponse;
+                throw errorResponse;
             }
 
             return await response.json();
@@ -34,8 +35,8 @@ export const useCreateProject = () => {
                 queryKey: ["total-project-in-workspace"],
             });
         },
-        onError: (error) => {
-            toast.error(error.message);
+        onError: (err) => {
+            toast.error(err.error);
         },
     });
 

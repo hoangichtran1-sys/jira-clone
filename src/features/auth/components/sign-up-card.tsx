@@ -16,7 +16,11 @@ import {
     FormItem,
     FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import {
+    InputGroup,
+    InputGroupInput,
+    InputGroupAddon,
+} from "@/components/ui/input-group";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import Link from "next/link";
@@ -24,10 +28,20 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { registerSchema } from "../schemas";
-import { useRegister } from "../api/use-register";
-import { signUpWithGithub, signUpWithGoogle } from "@/lib/oauth";
+import { useRouter, useSearchParams } from "next/navigation";
+import { safeRedirect } from "@/lib/utils";
+import { OAuthProvider, useAuth } from "@appwrite.io/react";
+import { toast } from "sonner";
+import { LockIcon, MailIcon, UserIcon } from "lucide-react";
 
 export const SignUpCard = () => {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    const redirect = safeRedirect(searchParams.get("redirect"));
+
+    const { signUp, signIn } = useAuth();
+
     const form = useForm<z.infer<typeof registerSchema>>({
         resolver: zodResolver(registerSchema),
         defaultValues: {
@@ -37,10 +51,32 @@ export const SignUpCard = () => {
         },
     });
 
-    const register = useRegister();
-
     const handleSubmit = (values: z.infer<typeof registerSchema>) => {
-        register.mutate({ json: values });
+        signUp.emailPassword({
+            email: values.email,
+            password: values.password,
+            name: values.name,
+            onError(error) {
+                console.log(error);
+                toast.error(error.message);
+            },
+            onSuccess() {
+                toast.success("Register successfully");
+                router.push(redirect);
+            },
+        });
+    };
+
+    const handleSocial = (provider: keyof typeof OAuthProvider) => {
+        signIn.oAuth({
+            provider: provider.toLowerCase(),
+            successUrl: `${process.env.NEXT_PUBLIC_APP_URL}${redirect}`,
+            failureUrl: `${process.env.NEXT_PUBLIC_APP_URL}/sign-up`,
+            onError(error) {
+                console.log(error);
+                toast.error(error.message);
+            },
+        });
     };
 
     return (
@@ -73,11 +109,16 @@ export const SignUpCard = () => {
                             render={({ field }) => (
                                 <FormItem>
                                     <FormControl>
-                                        <Input
-                                            {...field}
-                                            type="text"
-                                            placeholder="Enter your name"
-                                        />
+                                        <InputGroup>
+                                            <InputGroupInput
+                                                {...field}
+                                                type="text"
+                                                placeholder="Enter your name"
+                                            />
+                                            <InputGroupAddon>
+                                                <UserIcon />
+                                            </InputGroupAddon>
+                                        </InputGroup>
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -89,11 +130,16 @@ export const SignUpCard = () => {
                             render={({ field }) => (
                                 <FormItem>
                                     <FormControl>
-                                        <Input
-                                            {...field}
-                                            type="email"
-                                            placeholder="Enter email address"
-                                        />
+                                        <InputGroup>
+                                            <InputGroupInput
+                                                {...field}
+                                                type="email"
+                                                placeholder="Enter email address"
+                                            />
+                                            <InputGroupAddon>
+                                                <MailIcon />
+                                            </InputGroupAddon>
+                                        </InputGroup>
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -105,18 +151,23 @@ export const SignUpCard = () => {
                             render={({ field }) => (
                                 <FormItem>
                                     <FormControl>
-                                        <Input
-                                            {...field}
-                                            type="password"
-                                            placeholder="Enter password"
-                                        />
+                                        <InputGroup>
+                                            <InputGroupAddon>
+                                                <InputGroupInput
+                                                    {...field}
+                                                    type="password"
+                                                    placeholder="Enter password"
+                                                />
+                                                <LockIcon />
+                                            </InputGroupAddon>
+                                        </InputGroup>
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
                         <Button
-                            disabled={register.isPending}
+                            disabled={signUp.isPending}
                             size="lg"
                             className="w-full"
                         >
@@ -133,8 +184,8 @@ export const SignUpCard = () => {
                     variant="secondary"
                     size="lg"
                     className="w-full"
-                    disabled={register.isPending}
-                    onClick={() => signUpWithGoogle()}
+                    disabled={signUp.isPending}
+                    onClick={() => handleSocial("Google")}
                 >
                     <FcGoogle className="mr-2 size-5" />
                     Login with Google
@@ -143,8 +194,8 @@ export const SignUpCard = () => {
                     variant="secondary"
                     size="lg"
                     className="w-full"
-                    disabled={register.isPending}
-                    onClick={() => signUpWithGithub()}
+                    disabled={signUp.isPending}
+                    onClick={() => handleSocial("Github")}
                 >
                     <FaGithub className="mr-2 size-5" />
                     Login with Github

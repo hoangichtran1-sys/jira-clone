@@ -27,6 +27,9 @@ import { Project } from "../types";
 import { useUpdateProject } from "../api/use-update-project";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useDeleteProject } from "../api/use-delete-project";
+import { useWorkspaceId } from "@/features/workspaces/hooks/use-workspace-id";
+import { useGetCurrentMember } from "@/features/members/api/use-get-current-member";
+import { MemberRole } from "@/features/members/types";
 
 interface EditProjectFormProps {
     onCancel?: () => void;
@@ -38,6 +41,11 @@ export const EditProjectForm = ({
     initialValues,
 }: EditProjectFormProps) => {
     const router = useRouter();
+    const workspaceId = useWorkspaceId();
+
+    const { data: currentMember } = useGetCurrentMember({
+        workspaceId,
+    });
 
     const form = useForm<z.infer<typeof updateProjectSchema>>({
         resolver: zodResolver(updateProjectSchema),
@@ -273,7 +281,10 @@ export const EditProjectForm = ({
                             size="sm"
                             variant="danger"
                             type="button"
-                            disabled={updateProject.isPending}
+                            disabled={
+                                updateProject.isPending ||
+                                currentMember?.role !== MemberRole.ADMIN
+                            }
                             onClick={handleDelete}
                         >
                             Delete Project

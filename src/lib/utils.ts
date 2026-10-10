@@ -1,6 +1,6 @@
-import { IMAGES_BUCKET_ID } from "@/config/appwrite";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { createNextClient } from "./appwrite-client";
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -37,8 +37,38 @@ export function snakeCaseToTitleCase(str: string) {
         .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export function generateImageUrl(fileId: string) {
-    const convertImageUrl = `${process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT}/storage/buckets/${IMAGES_BUCKET_ID}/files/${fileId}/view?project=${process.env.NEXT_PUBLIC_APPWRITE_PROJECT}`;
+export function safeRedirect(url: string | null) {
+    if (!url) return "/";
 
-    return convertImageUrl;
+    if (url.startsWith("/")) return url;
+
+    return "/";
+}
+
+export async function hashEmail(email: string) {
+    const data = new TextEncoder().encode(email.trim().toLowerCase());
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(digest))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+}
+
+export function getUserPhoto(
+    userId?: string,
+    width: number = 128,
+    height: number = 128,
+) {
+    try {
+        const { avatars } = createNextClient();
+        const avatarUrl = avatars.getPhoto({
+            userId,
+            width,
+            height,
+        });
+
+        return avatarUrl;
+    } catch (error) {
+        console.log(error);
+        return null;
+    }
 }

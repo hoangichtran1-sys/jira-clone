@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  images: {
+    /* config options here */
+    transpilePackages: ["@appwrite.io/react"],
+    images: {
         remotePatterns: [
             {
                 protocol: "https",

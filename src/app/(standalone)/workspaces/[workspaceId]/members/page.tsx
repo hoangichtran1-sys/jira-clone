@@ -1,6 +1,5 @@
-import { getCurrent } from "@/features/auth/queries";
 import { MembersList } from "@/features/workspaces/components/members-list";
-import { redirect } from "next/navigation";
+import { requireAuth } from "@/lib/auth-utils";
 
 interface PageProps {
     params: Promise<{
@@ -9,11 +8,9 @@ interface PageProps {
 }
 
 const Page = async ({ params }: PageProps) => {
-    const user = await getCurrent();
-
-    if (!user) redirect("/sign-in");
-
     const { workspaceId } = await params;
+
+    await requireAuth();
 
     return (
         <div className="w-full lg:max-w-xl">

@@ -1,18 +1,15 @@
 import { createMiddleware } from "hono/factory";
-import "server-only";
+import { HTTPException } from "hono/http-exception";
 import { AdditionalContext } from "./session-middleware";
+import { env } from "./env";
 
 export const adminMiddleware = createMiddleware<AdditionalContext>(
     async (c, next) => {
         const user = c.get("user");
-        const adminEmail = process.env.ADMIN_EMAIL;
+        const adminEmail = env.ADMIN_EMAIL;
 
-        if (!user) {
-            return c.json({ error: "Not found"}, 404);
-        }
-        
         if (user.email !== adminEmail) {
-            return c.json({ error: "Forbidden"}, 403)
+            throw new HTTPException(403, { message: "Forbidden" });
         }
 
         await next();

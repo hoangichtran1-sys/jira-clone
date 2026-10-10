@@ -32,6 +32,8 @@ import { useResetInviteCode } from "../api/use-reset-invite-code";
 import { InvitationWorkspaceModal } from "./invitation-workspace-modal";
 import { useInvitationModal } from "../hooks/use-invitation-modal";
 import { usePaywall } from "@/features/subscriptions/hooks/use-paywall";
+import { useGetCurrentMember } from "@/features/members/api/use-get-current-member";
+import { MemberRole } from "@/features/members/types";
 
 interface EditWorkspaceFormProps {
     onCancel?: () => void;
@@ -46,6 +48,10 @@ export const EditWorkspaceForm = ({
     const [isCopied, setIsCopied] = useState(false);
     const { onOpen } = useInvitationModal();
     const { shouldBlock, triggerPaywall } = usePaywall();
+
+    const { data: currentMember } = useGetCurrentMember({
+        workspaceId: initialValues.$id,
+    });
 
     const form = useForm<z.infer<typeof updateWorkspaceSchema>>({
         resolver: zodResolver(updateWorkspaceSchema),
@@ -344,7 +350,8 @@ export const EditWorkspaceForm = ({
                                 type="button"
                                 disabled={
                                     updateWorkspace.isPending ||
-                                    resetInviteCode.isPending
+                                    resetInviteCode.isPending ||
+                                    currentMember?.role !== MemberRole.ADMIN
                                 }
                                 onClick={handleResetInviteCode}
                             >
@@ -383,7 +390,8 @@ export const EditWorkspaceForm = ({
                             type="button"
                             disabled={
                                 deleteWorkspace.isPending ||
-                                updateWorkspace.isPending
+                                updateWorkspace.isPending ||
+                                currentMember?.role !== MemberRole.ADMIN
                             }
                             onClick={handleDelete}
                         >

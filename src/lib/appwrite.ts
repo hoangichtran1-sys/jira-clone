@@ -1,14 +1,13 @@
 import "server-only";
 
-import { Client, Account, Users, Databases, Messaging } from "node-appwrite";
-import { AUTH_COOKIE } from "@/features/auth/constants";
-import { cookies } from "next/headers";
+import { Client, Account, Users, TablesDB, Messaging } from "node-appwrite";
+import { env } from "./env";
 
 export async function createAdminClient() {
     const client = new Client()
         .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-        .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT!)
-        .setKey(process.env.NEXT_APPWRITE_KEY!);
+        .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
+        .setKey(env.APPWRITE_API_KEY);
 
     return {
         get account() {
@@ -18,33 +17,27 @@ export async function createAdminClient() {
             return new Users(client);
         },
         get databases() {
-            return new Databases(client);
+            return new TablesDB(client);
         },
         get messaging() {
             return new Messaging(client);
-        }
+        },
     };
 }
 
-export async function createSessionClient() {
+export async function createSessionClient(sessionValue: string) {
     const client = new Client()
         .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-        .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT!);
+        .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
 
-    const session = (await cookies()).get(AUTH_COOKIE);
-
-    if (!session || !session.value) {
-        throw new Error("Unauthorized");
-    }
-
-    client.setSession(session.value);
+    client.setSession(sessionValue);
 
     return {
         get account() {
             return new Account(client);
         },
         get databases() {
-            return new Databases(client);
+            return new TablesDB(client);
         },
     };
 }

@@ -1,40 +1,50 @@
 import { Hono } from "hono";
-import { handle } from "hono/vercel";
-//import { rateLimiter } from "hono-rate-limiter";
-import auth from "@/features/auth/server/route";
+import { handle } from "@hono/vercel";
+import { logger } from "hono/logger";
+import { methodNotAllowed } from "hono/method-not-allowed";
+import { HTTPException } from "hono/http-exception";
+import { timeout } from "hono/timeout";
+import { ContentfulStatusCode } from "hono/utils/http-status";
+import { AppwriteException } from "node-appwrite";
+
+import { baseSecurityMiddleware } from "@/lib/security-middleware";
 import workspaces from "@/features/workspaces/server/route";
 import members from "@/features/members/server/route";
 import projects from "@/features/projects/server/route";
 import tasks from "@/features/tasks/server/route";
 import subscriptions from "@/features/subscriptions/server/route";
+import auth from "./auth";
 import ably from "./ably";
-import bull from "./bull"
-import { baseSecurityMiddleware } from "@/lib/security-middleware";
-
-export const runtime = "nodejs";
+// import cron from "./cron";
 
 const app = new Hono().basePath("/api");
 
-// Rate limit
-// app.use(
-//     rateLimiter({
-//         windowMs: 60 * 1000,
-//         limit: 180,
-//         keyGenerator: (c) =>
-//             c.req.header("cf-connecting-ip") ??
-//             c.req.header("x-forwarded-for")?.split(",")[0] ??
-//             c.req.header("x-real-ip") ??
-//             "unknown",
-//         handler: (c) => {
-//             return c.json(
-//                 { error: "Too many requests", type: "rate_limit_exceeded" },
-//                 429,
-//             );
-//         },
-//     }),
-// );
+app.use(logger());
 
-app.use("*", baseSecurityMiddleware);
+app.use("/api", baseSecurityMiddleware);
+
+app.use(
+    "/api",
+    timeout(
+        60000,
+        new HTTPException(408, {
+            message: "Operation timed out. Please try again later",
+        }),
+    ),
+);
+
+app.use(
+    "/api",
+    methodNotAllowed({
+        app,
+        onMethodNotAllowed: (_c, methods) => {
+            throw new HTTPException(405, {
+                message: "Method Not Allowed",
+                cause: `Allow: ${methods.join(", ")},`,
+            });
+        },
+    }),
+);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const routes = app
@@ -44,8 +54,30 @@ const routes = app
     .route("/projects", projects)
     .route("/tasks", tasks)
     .route("/subscriptions", subscriptions)
-    .route("/admin/bull", bull)
     .route("/ably", ably);
+// .route("/trigger", cron);
+
+app.notFound((c) => {
+    return c.json(
+        { error: `Route ${c.req.method} ${c.req.url} not found` },
+        404,
+    );
+});
+
+app.onError((err, c) => {
+    if (err instanceof AppwriteException) {
+        return c.json(
+            { error: err.message, cause: err.cause },
+            err.code as ContentfulStatusCode,
+        );
+    }
+
+    if (err instanceof HTTPException) {
+        return c.json({ error: err.message, cause: err.cause }, err.status);
+    }
+
+    return c.json({ error: "Something went wrong" }, 500);
+});
 
 export const GET = handle(app);
 export const POST = handle(app);

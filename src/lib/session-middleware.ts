@@ -1,26 +1,23 @@
-import "server-only";
-
+import { HTTPException } from "hono/http-exception";
 import {
     Account,
     Client,
-    Databases,
+    TablesDB,
     Models,
     Storage,
     type Account as AccountType,
-    type Databases as DatabasesType,
+    type TablesDB as TablesDBType,
     type Storage as StorageType,
     type Users as UsersType,
 } from "node-appwrite";
-import { getCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
-
-import { AUTH_COOKIE } from "@/features/auth/constants";
-//import { sessionArcjet } from "./arcjet";
+import { createNextServerHelpers } from "@appwrite.io/react/server/next";
+import { appwrite } from "./appwrite-client";
 
 export type AdditionalContext = {
     Variables: {
         account: AccountType;
-        databases: DatabasesType;
+        databases: TablesDBType;
         storage: StorageType;
         users: UsersType;
         user: Models.User<Models.Preferences>;
@@ -31,38 +28,27 @@ export const sessionMiddleware = createMiddleware<AdditionalContext>(
     async (c, next) => {
         const client = new Client()
             .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-            .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT!);
+            .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
 
-        const session = getCookie(c, AUTH_COOKIE);
+        const helpers = createNextServerHelpers(appwrite);
+
+        const session = await helpers.readSessionCookie();
 
         if (!session) {
-            return c.json({ error: "Unauthorized" }, 401);
+            throw new HTTPException(401, { message: "Unauthorized" });
+        }
+
+        const user = await helpers.getLoggedInUser();
+
+        if (!user) {
+            throw new HTTPException(401, { message: "Unauthorized" });
         }
 
         client.setSession(session);
 
         const account = new Account(client);
-        const databases = new Databases(client);
+        const databases = new TablesDB(client);
         const storage = new Storage(client);
-
-        let user;
-        try {
-            user = await account.get();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (err: any) {
-            console.error("account.get failed", err);
-            return c.json({ error: "Unauthorized" }, 401);
-        }
-
-        // if (sessionArcjet) {
-        //     const decision = await sessionArcjet.protect(c.req.raw, {
-        //         userId: user?.$id,
-        //     });
-
-        //     if (decision.isDenied()) {
-        //         return c.json({ error: "Too many requests" }, 429);
-        //     }
-        // }
 
         c.set("account", account);
         c.set("databases", databases);

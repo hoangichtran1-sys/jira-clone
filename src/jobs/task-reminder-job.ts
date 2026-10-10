@@ -2,9 +2,10 @@
 import { ID, Query } from "node-appwrite";
 import { Task, TaskStatus } from "@/features/tasks/types";
 import { ensureEmailTarget } from "@/features/workspaces/utils";
-import { createAdminClient } from "@/lib/appwrite-client";
+import { createAdminClient } from "@/lib/appwrite";
 import { getAssigneeUser } from "@/features/tasks/utils";
 import { DATABASES_ID, TASKS_ID } from "@/config/appwrite";
+import { env } from "@/lib/env";
 
 export const processTaskReminder = async () => {
     try {
@@ -15,19 +16,19 @@ export const processTaskReminder = async () => {
         threeDaysLater.setDate(now.getDate() + 3);
 
         // 1. Lấy danh sách Task sắp hết hạn (trong 3 ngày tới)
-        const tasks = await databases.listDocuments<Task>(
-            DATABASES_ID,
-            TASKS_ID,
-            [
+        const tasks = await databases.listRows<Task>({
+            databaseId: DATABASES_ID,
+            tableId: TASKS_ID,
+            queries: [
                 Query.notEqual("status", TaskStatus.DONE),
                 Query.greaterThan("dueDate", now.toISOString()),
                 Query.lessThan("dueDate", threeDaysLater.toISOString()),
                 Query.limit(1000),
             ],
-        );
+        });
 
         const populatedTasks = await Promise.all(
-            tasks.documents.map(async (task) => {
+            tasks.rows.map(async (task) => {
                 const assigneeUser = await getAssigneeUser({
                     databases,
                     assigneeId: task.assigneeId,
@@ -62,7 +63,7 @@ export const processTaskReminder = async () => {
           <p>📅 <b>Deadline:</b> ${new Date(task.dueDate).toLocaleString()}</p>
           <p>Vui lòng kiểm tra và hoàn thành đúng hạn.</p>
           <hr />
-          <a href="${process.env.NEXT_PUBLIC_API_URL}/workspaces/${task.workspaceId}/tasks/${task.$id}" 
+          <a href="${env.APP_URL}/workspaces/${task.workspaceId}/tasks/${task.$id}" 
              style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
              Xem chi tiết Task
           </a>
@@ -70,14 +71,13 @@ export const processTaskReminder = async () => {
       `;
 
             try {
-                await messaging.createEmail(
-                    ID.unique(),
-                    `[Urgent] Task Reminder: ${task.name}`,
-                    htmlContent,
-                    [],
-                    [],
-                    [targetId],
-                );
+                await messaging.createEmail({
+                    messageId: ID.unique(),
+                    subject: `[Urgent] Task Reminder: ${task.name}`,
+                    content: htmlContent,
+                    targets: [targetId],
+                    html: true,
+                });
                 console.log(
                     `Đã gửi nhắc nhở cho task: ${task.name} tới User: ${task.assigneeId}`,
                 );

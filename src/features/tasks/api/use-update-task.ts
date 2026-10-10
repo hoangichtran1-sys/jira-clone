@@ -1,4 +1,5 @@
 import { client } from "@/lib/rpc";
+import { ErrorResponse } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { InferRequestType, InferResponseType } from "hono";
 import { toast } from "sonner";
@@ -14,7 +15,7 @@ type RequestType = InferRequestType<
 export const useUpdateTask = () => {
     const queryClient = useQueryClient();
 
-    const mutation = useMutation<ResponseType, Error, RequestType>({
+    const mutation = useMutation<ResponseType, ErrorResponse, RequestType>({
         mutationFn: async ({ param, json }) => {
             const response = await client.api.tasks[":taskId"]["$patch"]({
                 param,
@@ -22,7 +23,9 @@ export const useUpdateTask = () => {
             });
 
             if (!response.ok) {
-                throw new Error("Failed to update task");
+                const errorResponse =
+                    (await response.json()) as unknown as ErrorResponse;
+                throw errorResponse;
             }
 
             return await response.json();
@@ -36,8 +39,8 @@ export const useUpdateTask = () => {
             queryClient.invalidateQueries({ queryKey: ["tasks"] });
             queryClient.invalidateQueries({ queryKey: ["task", data.$id] });
         },
-        onError: () => {
-            toast.error("Failed to update task");
+        onError: (err) => {
+            toast.error(err.error);
         },
     });
 

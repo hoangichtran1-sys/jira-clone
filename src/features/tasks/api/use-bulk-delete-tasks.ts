@@ -1,4 +1,5 @@
 import { client } from "@/lib/rpc";
+import { ErrorResponse } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { InferRequestType, InferResponseType } from "hono";
 import { toast } from "sonner";
@@ -14,14 +15,16 @@ type RequestType = InferRequestType<
 export const useBulkDeleteTasks = () => {
     const queryClient = useQueryClient();
 
-    const mutation = useMutation<ResponseType, Error, RequestType>({
+    const mutation = useMutation<ResponseType, ErrorResponse, RequestType>({
         mutationFn: async ({ json }) => {
             const response = await client.api.tasks["bulk-delete"]["$post"]({
                 json,
             });
 
             if (!response.ok) {
-                throw new Error("Failed to bulk delete tasks");
+                const errorResponse =
+                    (await response.json()) as unknown as ErrorResponse;
+                throw errorResponse;
             }
 
             return await response.json();
@@ -34,8 +37,8 @@ export const useBulkDeleteTasks = () => {
             });
             queryClient.invalidateQueries({ queryKey: ["tasks"] });
         },
-        onError: () => {
-            toast.error("Failed to bulk delete tasks");
+        onError: (err) => {
+            toast.error(err.error);
         },
     });
 

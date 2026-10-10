@@ -13,10 +13,15 @@ export enum PresenceEvent {
     UPDATE = 4,
 }
 
-export type Member = Models.Document & {
+export type Member = Models.Row & {
     userId: string;
     workspaceId: string;
     role: MemberRole;
     subscriberId: string;
     lastSeen?: string;
+};
+
+export type MemberPopulated = Member & {
+    name: string;
+    email: string;
 };

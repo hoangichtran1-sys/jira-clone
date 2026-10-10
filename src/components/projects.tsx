@@ -11,13 +11,16 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { RiAddCircleFill } from "react-icons/ri";
+import { ErrorResponse } from "@/types";
+import { useEffect } from "react";
+import { toast } from "sonner";
 
 export const Projects = () => {
     const pathname = usePathname();
 
     const { open } = useCreateProjectModal();
     const workspaceId = useWorkspaceId();
-    const { data: projects } = useGetProjects({ workspaceId });
+    const { data: projects, isError, error } = useGetProjects({ workspaceId });
     const { shouldBlock, triggerPaywall } = usePaywall();
     const { data: totalProject } = useGetTotalProjectInWorkspace({
         workspaceId,
@@ -31,6 +34,13 @@ export const Projects = () => {
         open();
     };
 
+    useEffect(() => {
+        if (isError) {
+            const err = (error as unknown as ErrorResponse).error;
+            toast.error(err);
+        }
+    }, [isError, error]);
+
     return (
         <div className="flex flex-col gap-y-2">
             <div className="flex items-center justify-between">
@@ -40,7 +50,7 @@ export const Projects = () => {
                     className="size-5 text-neutral-500 cursor-pointer hover:opacity-75 transition"
                 />
             </div>
-            {projects?.documents.map((project) => {
+            {projects?.rows.map((project) => {
                 const href = `/workspaces/${workspaceId}/projects/${project.$id}`;
                 const isActive = pathname === href;
 

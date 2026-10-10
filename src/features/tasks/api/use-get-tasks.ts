@@ -1,6 +1,7 @@
 import { client } from "@/lib/rpc";
 import { useQuery } from "@tanstack/react-query";
 import { TaskStatus } from "../types";
+import { ErrorResponse } from "@/types";
 
 interface UseGetTasksProps {
     workspaceId: string;
@@ -42,7 +43,9 @@ export const useGetTasks = ({
             });
 
             if (!response.ok) {
-                throw new Error("Failed to fetch tasks");
+                const errorResponse =
+                    (await response.json()) as unknown as ErrorResponse;
+                throw errorResponse;
             }
 
             const { data } = await response.json();
