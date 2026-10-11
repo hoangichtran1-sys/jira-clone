@@ -3,9 +3,11 @@ import { hc } from "hono/client";
 import { AppType } from "@/app/api/[[...route]]/route";
 import { ErrorResponse } from "@/types";
 
-export const client = hc<AppType>(process.env.NEXT_PUBLIC_API_URL!);
+export const client = hc<AppType>(process.env.NEXT_PUBLIC_APP_URL!);
 
-export async function handleResponse<T>(response: Promise<{ ok: boolean, json: () => Promise<T> }>) {
+export async function handleResponse<T>(
+    response: Promise<{ ok: boolean; json: () => Promise<T> }>,
+) {
     const res = await response;
     const data = await res.json();
 
