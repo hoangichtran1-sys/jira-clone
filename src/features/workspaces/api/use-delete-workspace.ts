@@ -29,14 +29,11 @@ export const useDeleteWorkspace = () => {
 
             return await response.json();
         },
-        onSuccess: ({ data }) => {
+        onSuccess: () => {
             toast.success("Workspace deleted");
             queryClient.invalidateQueries({ queryKey: ["workspaces"] });
             queryClient.invalidateQueries({
                 queryKey: ["total-workspace-create"],
-            });
-            queryClient.invalidateQueries({
-                queryKey: ["workspace", data.$id],
             });
         },
         onError: (err) => {

@@ -38,9 +38,6 @@ export const useDeleteProject = () => {
             queryClient.invalidateQueries({
                 queryKey: ["total-project-in-workspace"],
             });
-            queryClient.invalidateQueries({
-                queryKey: ["project", data.$id],
-            });
         },
         onError: (err) => {
             toast.error(err.error);

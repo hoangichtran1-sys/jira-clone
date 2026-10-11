@@ -74,8 +74,11 @@ export const EditProjectForm = ({
         updateProject.mutate(
             { form: finalValues, param: { projectId: initialValues.$id } },
             {
-                onSuccess: () => {
-                    form.reset();
+                onSuccess: ({ data }) => {
+                    form.reset({
+                        ...data,
+                        image: data.imageUrl || "",
+                    });
                 },
             },
         );

@@ -89,8 +89,11 @@ export const EditWorkspaceForm = ({
         updateWorkspace.mutate(
             { form: finalValues, param: { workspaceId: initialValues.$id } },
             {
-                onSuccess: () => {
-                    form.reset();
+                onSuccess: ({ data }) => {
+                    form.reset({
+                        ...data,
+                        image: data.imageUrl || "",
+                    });
                 },
             },
         );
