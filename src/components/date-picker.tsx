@@ -7,20 +7,19 @@ import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { Calendar } from "./ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import { type DateRange } from "react-day-picker";
 
 interface DatePickerProps {
-    value: DateRange | undefined;
-    onDateChange: (dateRange: DateRange) => void;
+    value: Date | undefined;
+    onChange: (date: Date) => void;
     className?: string;
     placeholder?: string;
 }
 
 export const DatePicker = ({
     value,
-    onDateChange,
+    onChange,
     className,
-    placeholder = "Pick a date",
+    placeholder = "Select date",
 }: DatePickerProps) => {
     return (
         <Popover>
@@ -35,28 +34,21 @@ export const DatePicker = ({
                     )}
                 >
                     <CalendarIcon className="h-4 w-4" />
-                    {value?.from ? (
-                        value.to ? (
-                            <>
-                                {format(value.from, "LLL dd, y")} -{" "}
-                                {format(value.to, "LLL dd, y")}
-                            </>
-                        ) : (
-                            format(value.from, "LLL dd, y")
-                        )
+                    {value ? (
+                        format(value, "PPP")
                     ) : (
-                        <span>{placeholder}</span>
+                        <span className="text-muted-foreground">
+                            {placeholder}
+                        </span>
                     )}
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0">
                 <Calendar
-                    mode="range"
-                    defaultMonth={value?.from}
+                    mode="single"
                     selected={value}
-                    onSelect={onDateChange}
-                    numberOfMonths={2}
-                    required
+                    onSelect={(date) => onChange(date as Date)}
+                    initialFocus
                 />
             </PopoverContent>
         </Popover>

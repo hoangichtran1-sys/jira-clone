@@ -10,7 +10,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { DatePicker } from "@/components/date-picker";
 import { FolderIcon, ListCheckIcon, UserIcon } from "lucide-react";
 import { TaskStatus } from "../types";
 import { useTaskFilters } from "../hooks/use-task-filters";
@@ -21,6 +20,7 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 import { addDays } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { DatePickerRange } from "@/components/date-picker-range";
 
 interface DataFiltersProps {
     hideProjectFilter?: boolean;
@@ -200,7 +200,7 @@ export const DataFilters = ({
                         </SelectContent>
                     </Select>
                 )}
-                <DatePicker
+                <DatePickerRange
                     placeholder="Due date"
                     className="h-8 w-full lg:w-auto"
                     value={{
