@@ -19,7 +19,8 @@ import { EntitySearch } from "@/components/entity-search";
 import { ErrorResponse } from "@/types";
 import { useEffect } from "react";
 import { toast } from "sonner";
-//import { Button } from "@/components/ui/button";
+import { addDays } from "date-fns";
+import { Button } from "@/components/ui/button";
 
 interface DataFiltersProps {
     hideProjectFilter?: boolean;
@@ -61,8 +62,10 @@ export const DataFilters = ({
         label: member.name,
     }));
 
-    const [{ status, assigneeId, projectId, dueDate, search }, setFilters] =
-        useTaskFilters();
+    const [
+        { status, assigneeId, projectId, startDate, endDate, search },
+        setFilters,
+    ] = useTaskFilters();
 
     const { searchValue, onSearchChange } = useEntitySearch({
         params: { search },
@@ -93,6 +96,20 @@ export const DataFilters = ({
         }
     };
 
+    const onClearFilters = () => {
+        setFilters({
+            projectId: null,
+            status: null,
+            assigneeId: null,
+            search: "",
+            startDate: null,
+            endDate: null,
+        });
+    };
+
+    const isShowClearButton =
+        status || assigneeId || projectId || (startDate && endDate) || search;
+
     useEffect(() => {
         if (isError) {
             const allError = Array(
@@ -111,91 +128,108 @@ export const DataFilters = ({
 
     return (
         <div className="flex flex-col items-center justify-between lg:flex-row gap-2">
-            <Select
-                defaultValue={status || undefined}
-                onValueChange={(value) => onStatusChange(value)}
-            >
-                <SelectTrigger className="w-full lg:w-auto h-8">
-                    <div className="flex items-center pr-2">
-                        <ListCheckIcon className="size-4 mr-2" />
-                        <SelectValue placeholder="All status" />
-                    </div>
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All status</SelectItem>
-                    <SelectSeparator />
-                    <SelectItem value={TaskStatus.BACKLOG}>Backlog</SelectItem>
-                    <SelectItem value={TaskStatus.IN_PROGRESS}>
-                        In Progress
-                    </SelectItem>
-                    <SelectItem value={TaskStatus.IN_REVIEW}>
-                        In Review
-                    </SelectItem>
-                    <SelectItem value={TaskStatus.TODO}>Todo</SelectItem>
-                    <SelectItem value={TaskStatus.DONE}>Done</SelectItem>
-                </SelectContent>
-            </Select>
-            <Select
-                defaultValue={assigneeId || undefined}
-                onValueChange={(value) => onAssigneeChange(value)}
-            >
-                <SelectTrigger className="w-full lg:w-auto h-8">
-                    <div className="flex items-center pr-2">
-                        <UserIcon className="size-4 mr-2" />
-                        <SelectValue placeholder="All assignees" />
-                    </div>
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All assignees</SelectItem>
-                    <SelectSeparator />
-                    {memberOptions?.map((member) => (
-                        <SelectItem key={member.value} value={member.value}>
-                            {member.label}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            {!hideProjectFilter && (
+            <div className="flex items-center justify-start gap-x-2">
                 <Select
-                    defaultValue={projectId || undefined}
-                    onValueChange={(value) => onProjectChange(value)}
+                    defaultValue={status || undefined}
+                    onValueChange={(value) => onStatusChange(value)}
                 >
                     <SelectTrigger className="w-full lg:w-auto h-8">
                         <div className="flex items-center pr-2">
-                            <FolderIcon className="size-4 mr-2" />
-                            <SelectValue placeholder="All projects" />
+                            <ListCheckIcon className="size-4 mr-2" />
+                            <SelectValue placeholder="All status" />
                         </div>
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">All projects</SelectItem>
+                        <SelectItem value="all">All status</SelectItem>
                         <SelectSeparator />
-                        {projectOptions?.map((project) => (
-                            <SelectItem
-                                key={project.value}
-                                value={project.value}
-                            >
-                                {project.label}
+                        <SelectItem value={TaskStatus.BACKLOG}>
+                            Backlog
+                        </SelectItem>
+                        <SelectItem value={TaskStatus.IN_PROGRESS}>
+                            In Progress
+                        </SelectItem>
+                        <SelectItem value={TaskStatus.IN_REVIEW}>
+                            In Review
+                        </SelectItem>
+                        <SelectItem value={TaskStatus.TODO}>Todo</SelectItem>
+                        <SelectItem value={TaskStatus.DONE}>Done</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Select
+                    defaultValue={assigneeId || undefined}
+                    onValueChange={(value) => onAssigneeChange(value)}
+                >
+                    <SelectTrigger className="w-full lg:w-auto h-8">
+                        <div className="flex items-center pr-2">
+                            <UserIcon className="size-4 mr-2" />
+                            <SelectValue placeholder="All assignees" />
+                        </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All assignees</SelectItem>
+                        <SelectSeparator />
+                        {memberOptions?.map((member) => (
+                            <SelectItem key={member.value} value={member.value}>
+                                {member.label}
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
-            )}
-            <DatePicker
-                placeholder="Due date"
-                className="h-8 w-full lg:w-auto"
-                value={dueDate ? new Date(dueDate) : undefined}
-                onChange={(date) => {
-                    setFilters({ dueDate: date ? date.toISOString() : null });
-                }}
-            />
+                {!hideProjectFilter && (
+                    <Select
+                        defaultValue={projectId || undefined}
+                        onValueChange={(value) => onProjectChange(value)}
+                    >
+                        <SelectTrigger className="w-full lg:w-auto h-8">
+                            <div className="flex items-center pr-2">
+                                <FolderIcon className="size-4 mr-2" />
+                                <SelectValue placeholder="All projects" />
+                            </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All projects</SelectItem>
+                            <SelectSeparator />
+                            {projectOptions?.map((project) => (
+                                <SelectItem
+                                    key={project.value}
+                                    value={project.value}
+                                >
+                                    {project.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                )}
+                <DatePicker
+                    placeholder="Due date"
+                    className="h-8 w-full lg:w-auto"
+                    value={{
+                        from: startDate || new Date(),
+                        to: endDate || addDays(new Date(), 20),
+                    }}
+                    onDateChange={(dateRange) => {
+                        setFilters({
+                            startDate: dateRange.from,
+                            endDate: dateRange.to,
+                        });
+                    }}
+                />
+                {isShowClearButton && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onClearFilters}
+                        className="h-8 px-3 text-xs text-muted-foreground cursor-pointer p-1.5"
+                    >
+                        Clear all
+                    </Button>
+                )}
+            </div>
             <EntitySearch
                 value={searchValue}
                 onChange={onSearchChange}
                 placeholder="Filter tasks by name..."
             />
-            {/* <Button size="icon" variant="ghost">
-                <RefreshCcwIcon className="size-6" />
-            </Button> */}
         </div>
     );
 };

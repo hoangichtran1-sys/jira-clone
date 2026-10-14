@@ -9,7 +9,8 @@ interface UseGetTasksProps {
     status?: TaskStatus | null;
     search?: string | null;
     assigneeId?: string | null;
-    dueDate?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
 }
 
 export const useGetTasks = ({
@@ -18,7 +19,8 @@ export const useGetTasks = ({
     status,
     search,
     assigneeId,
-    dueDate,
+    startDate,
+    endDate,
 }: UseGetTasksProps) => {
     const query = useQuery({
         queryKey: [
@@ -28,23 +30,33 @@ export const useGetTasks = ({
             status,
             search,
             assigneeId,
-            dueDate,
+            startDate,
+            endDate,
         ],
         queryFn: async () => {
+            const rawQuery = {
+                projectId,
+                status,
+                search,
+                assigneeId,
+                startDate,
+                endDate,
+            };
+            const cleanedQuery = Object.fromEntries(
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                Object.entries(rawQuery).filter(([_k, v]) => Boolean(v)),
+            );
             const response = await client.api.tasks.$get({
                 query: {
                     workspaceId,
-                    projectId: projectId || undefined,
-                    status: status || undefined,
-                    search: search || undefined,
-                    assigneeId: assigneeId || undefined,
-                    dueDate: dueDate || undefined,
+                    ...cleanedQuery,
                 },
             });
 
             if (!response.ok) {
                 const errorResponse =
                     (await response.json()) as unknown as ErrorResponse;
+                console.log(errorResponse);
                 throw errorResponse;
             }
 

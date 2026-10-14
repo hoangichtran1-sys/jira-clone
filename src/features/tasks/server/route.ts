@@ -73,7 +73,8 @@ const app = new Hono()
                 assigneeId: z.string().nullish(),
                 status: z.nativeEnum(TaskStatus).nullish(),
                 search: z.string().nullish(),
-                dueDate: z.string().nullish(), // Check type string or date
+                startDate: z.string().nullish(),
+                endDate: z.string().nullish(),
             }),
         ),
         async (c) => {
@@ -84,7 +85,8 @@ const app = new Hono()
                 status,
                 workspaceId,
                 projectId,
-                dueDate,
+                startDate,
+                endDate,
                 assigneeId,
                 search,
             } = c.req.valid("query");
@@ -99,34 +101,48 @@ const app = new Hono()
                 throw new HTTPException(401, { message: "Unauthorized" });
             }
 
+            if ((startDate && !endDate) || (!startDate && endDate)) {
+                throw new HTTPException(400, { message: "Invalid date range" });
+            }
+
+            if (startDate && endDate && startDate > endDate) {
+                throw new HTTPException(400, {
+                    message: "Start date must be before end date",
+                });
+            }
+
             const queries = [
                 Query.equal("workspaceId", workspaceId),
                 Query.orderDesc("$createdAt"),
             ];
 
             if (projectId) {
-                console.log("projectId", projectId);
                 queries.push(Query.equal("projectId", projectId));
             }
 
             if (status) {
-                console.log("status", status);
                 queries.push(Query.equal("status", status));
             }
 
             if (assigneeId) {
-                console.log("assigneeId", assigneeId);
                 queries.push(Query.equal("assigneeId", assigneeId));
             }
 
-            if (dueDate) {
-                console.log("dueDate", dueDate);
-                queries.push(Query.equal("dueDate", dueDate));
+            if (startDate && endDate) {
+                queries.push(
+                    Query.and([
+                        Query.lessThanEqual("dueDate", endDate),
+                        Query.greaterThanEqual("dueDate", startDate),
+                    ]),
+                );
             }
 
             if (search) {
-                console.log("search", search);
-                queries.push(Query.equal("name", search));
+                if (search.length < 3) {
+                    queries.push(Query.startsWith("name", search));
+                } else {
+                    queries.push(Query.search("name", search));
+                }
             }
 
             const tasks = await databases.listRows<Task>({

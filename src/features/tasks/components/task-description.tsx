@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import {
+    InputGroup,
+    InputGroupTextarea,
+    InputGroupAddon,
+    InputGroupText,
+} from "@/components/ui/input-group";
 import { DottedSeparator } from "@/components/dotted-separator";
 import { PencilIcon, XIcon } from "lucide-react";
 import { Task } from "../types";
@@ -50,13 +55,21 @@ export const TaskDescription = ({ task }: TaskDescriptionProps) => {
             <DottedSeparator className="my-4" />
             {isEditing ? (
                 <div className="flex flex-col gap-y-4">
-                    <Textarea
-                        placeholder="Add description task..."
-                        value={value}
-                        rows={5}
-                        onChange={(e) => setValue(e.target.value)}
-                        disabled={updateTask.isPending}
-                    />
+                    <InputGroup>
+                        <InputGroupTextarea
+                            placeholder="Add description task..."
+                            value={value}
+                            rows={5}
+                            onChange={(e) => setValue(e.target.value)}
+                            disabled={updateTask.isPending}
+                        />
+                        <InputGroupAddon align="block-end">
+                            <InputGroupText className="text-xs text-muted-foreground">
+                                {500 - (value || "").trim().length} characters
+                                left
+                            </InputGroupText>
+                        </InputGroupAddon>
+                    </InputGroup>
                     <Button
                         size="sm"
                         className="w-fit ml-auto"

@@ -22,7 +22,13 @@ export const WorkspaceAvatar = ({
                     className,
                 )}
             >
-                <Image fill src={image} alt={name} className="object-cover" />
+                <Image
+                    unoptimized
+                    fill
+                    src={image}
+                    alt={name}
+                    className="object-cover"
+                />
             </div>
         );
     }

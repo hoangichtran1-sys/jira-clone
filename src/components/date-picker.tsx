@@ -7,19 +7,20 @@ import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { Calendar } from "./ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { type DateRange } from "react-day-picker";
 
 interface DatePickerProps {
-    value: Date | undefined;
-    onChange: (date: Date) => void;
+    value: DateRange | undefined;
+    onDateChange: (dateRange: DateRange) => void;
     className?: string;
     placeholder?: string;
 }
 
 export const DatePicker = ({
     value,
-    onChange,
+    onDateChange,
     className,
-    placeholder = "Select date",
+    placeholder = "Pick a date",
 }: DatePickerProps) => {
     return (
         <Popover>
@@ -34,21 +35,28 @@ export const DatePicker = ({
                     )}
                 >
                     <CalendarIcon className="h-4 w-4" />
-                    {value ? (
-                        format(value, "PPP")
+                    {value?.from ? (
+                        value.to ? (
+                            <>
+                                {format(value.from, "LLL dd, y")} -{" "}
+                                {format(value.to, "LLL dd, y")}
+                            </>
+                        ) : (
+                            format(value.from, "LLL dd, y")
+                        )
                     ) : (
-                        <span className="text-muted-foreground">
-                            {placeholder}
-                        </span>
+                        <span>{placeholder}</span>
                     )}
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0">
                 <Calendar
-                    mode="single"
+                    mode="range"
+                    defaultMonth={value?.from}
                     selected={value}
-                    onSelect={(date) => onChange(date as Date)}
-                    initialFocus
+                    onSelect={onDateChange}
+                    numberOfMonths={2}
+                    required
                 />
             </PopoverContent>
         </Popover>

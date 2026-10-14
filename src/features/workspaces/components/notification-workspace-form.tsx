@@ -27,7 +27,12 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { MemberAvatar } from "@/features/members/components/member-avatar";
-import { Textarea } from "@/components/ui/textarea";
+import {
+    InputGroup,
+    InputGroupTextarea,
+    InputGroupAddon,
+    InputGroupText,
+} from "@/components/ui/input-group";
 import { toast } from "sonner";
 
 interface NotificationWorkspaceFormProps {
@@ -64,6 +69,8 @@ export const NotificationWorkspaceForm = ({
         toast("Notification sending...");
         onCancel?.();
     };
+
+    const content = form.watch("content");
 
     return (
         <Card className="w-full h-full border-none shadow-none">
@@ -147,12 +154,20 @@ export const NotificationWorkspaceForm = ({
                                     <FormItem>
                                         <FormLabel>Content</FormLabel>
                                         <FormControl>
-                                            <Textarea
-                                                {...field}
-                                                rows={4}
-                                                value={field.value || ""}
-                                                placeholder="Enter content"
-                                            />
+                                            <InputGroup>
+                                                <InputGroupTextarea
+                                                    {...field}
+                                                    rows={4}
+                                                    value={field.value || ""}
+                                                    placeholder="Enter content"
+                                                />
+                                                <InputGroupAddon align="block-end">
+                                                    <InputGroupText className="text-xs text-muted-foreground">
+                                                        {700 - content.length}{" "}
+                                                        characters left
+                                                    </InputGroupText>
+                                                </InputGroupAddon>
+                                            </InputGroup>
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

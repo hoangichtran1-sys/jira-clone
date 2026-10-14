@@ -32,7 +32,7 @@ export const TaskViewSwitcher = ({
     hideProjectFilter,
     paramProjectId,
 }: TaskViewSwitcherProps) => {
-    const [{ status, assigneeId, projectId, dueDate, search }] =
+    const [{ status, assigneeId, projectId, startDate, endDate, search }] =
         useTaskFilters();
 
     const view = useAtomValue(taskViewAtom);
@@ -62,7 +62,8 @@ export const TaskViewSwitcher = ({
         status,
         assigneeId,
         projectId: paramProjectId || projectId,
-        dueDate,
+        startDate: startDate?.toISOString(),
+        endDate: endDate?.toISOString(),
         search,
     });
 
@@ -127,15 +128,14 @@ export const TaskViewSwitcher = ({
                     <DottedSeparator className="my-4" />
                     <DataFilters hideProjectFilter={hideProjectFilter} />
                     <DottedSeparator className="my-4" />
-                    {isError && (
+                    {isError ? (
                         <div className="w-full border rounded-lg h-[200px] flex flex-col items-center justify-center">
                             <AlertTriangleIcon className="size-5 text-muted-foreground" />
                             <p className="text-sm font-medium text-muted-foreground whitespace-pre-line">
                                 {error}
                             </p>
                         </div>
-                    )}
-                    {isLoadingTasks ? (
+                    ) : isLoadingTasks ? (
                         <div className="w-full border rounded-lg h-[200px] flex flex-col items-center justify-center">
                             <LoaderIcon className="size-5 animate-spin text-muted-foreground" />
                         </div>

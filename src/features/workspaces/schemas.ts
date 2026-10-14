@@ -31,5 +31,5 @@ export const invitationSchema = z.object({
 export const notificationSchema = z.object({
     receiverId: z.string().min(1, "Receiver ID is required"),
     title: z.string().trim().min(1, "Title is required"),
-    content: z.string().trim().min(1, "Content is required"),
+    content: z.string().trim().min(1, "Content is required").max(700),
 });
