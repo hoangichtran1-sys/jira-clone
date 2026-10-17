@@ -162,12 +162,11 @@ export const ForgotPassword = () => {
                         </CardHeader>
 
                         <div className="flex flex-col gap-6">
-                            <InputGroup>
+                            <InputGroup className="bg-transparent h-9 text-sm">
                                 <InputGroupInput
                                     id="email-forgot-password"
                                     type="email"
                                     placeholder="me@example.com"
-                                    className="bg-transparent h-9 text-sm"
                                     autoComplete="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
@@ -295,12 +294,11 @@ export const ForgotPassword = () => {
                         </div>
 
                         <div className="flex flex-col gap-6">
-                            <InputGroup>
+                            <InputGroup className="bg-transparent text-sm">
                                 <InputGroupInput
                                     id="new-password-forgot-lp3-style"
                                     type={showPassword ? "text" : "password"}
                                     placeholder="Enter new password"
-                                    className="bg-transparent text-sm"
                                     autoComplete="new-password"
                                     value={password}
                                     onChange={(e) =>
