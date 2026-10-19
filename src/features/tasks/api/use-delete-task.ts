@@ -29,11 +29,13 @@ export const useDeleteTask = () => {
 
             return await response.json();
         },
-        onSuccess: () => {
+        onSuccess: ({ data }) => {
             toast.success("Task deleted");
-            queryClient.invalidateQueries({ queryKey: ["project-analytics"] });
             queryClient.invalidateQueries({
-                queryKey: ["workspace-analytics"],
+                queryKey: ["project-analytics", data.projectId],
+            });
+            queryClient.invalidateQueries({
+                queryKey: ["workspace-analytics", data.workspaceId],
             });
             queryClient.invalidateQueries({ queryKey: ["tasks"] });
         },

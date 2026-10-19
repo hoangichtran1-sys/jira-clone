@@ -60,7 +60,7 @@ const app = new Hono()
             timestamp: new Date().toISOString(),
         });
 
-        return c.json({ data: { $id: taskToDelete.$id } });
+        return c.json({ data: taskToDelete });
     })
     .get(
         "/",

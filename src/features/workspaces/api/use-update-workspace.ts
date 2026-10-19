@@ -36,7 +36,10 @@ export const useUpdateWorkspace = () => {
             router.push(`/workspaces/${data.$id}`);
             queryClient.invalidateQueries({ queryKey: ["workspaces"] });
             queryClient.invalidateQueries({
-                queryKey: ["workspace"],
+                queryKey: ["workspace", data.$id],
+            });
+            queryClient.invalidateQueries({
+                queryKey: ["workspace-info", data.$id],
             });
         },
         onError: (err) => {

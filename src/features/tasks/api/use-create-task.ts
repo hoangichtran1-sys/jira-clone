@@ -27,9 +27,11 @@ export const useCreateTask = () => {
         onSuccess: ({ data }) => {
             toast.success("Task created");
             router.push(`/workspaces/${data.workspaceId}/tasks/${data.$id}`);
-            queryClient.invalidateQueries({ queryKey: ["project-analytics"] });
             queryClient.invalidateQueries({
-                queryKey: ["workspace-analytics"],
+                queryKey: ["project-analytics", data.projectId],
+            });
+            queryClient.invalidateQueries({
+                queryKey: ["workspace-analytics", data.workspaceId],
             });
             queryClient.invalidateQueries({ queryKey: ["tasks"] });
         },
